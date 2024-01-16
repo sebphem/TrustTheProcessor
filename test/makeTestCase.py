@@ -502,7 +502,7 @@ def RTypeTestSuite():
     for index, value in enumerate(regfile.regFile):
         # print(f"{value}, {outputRegs[index]}")
         if value != outputRegs[index]:
-            raise Exception(f"input reg {value} and output reg {outputRegs[index]}\ndont match in reg {index}")
+            raise Exception(f"input reg {value} and output reg {outputRegs[index]} dont match in reg {index}")
 
     regfile = registers(outputRegs)
     regfile.registersToHexFile("test_regs_out.hex")
@@ -842,8 +842,8 @@ if __name__ == "__main__":
     # PYTHON'S HEX IS NOT 4 BYTE LONG, WILL JUST MAKE
     # THE INT AS BIG AS NEEDED
     # RTypeTestSuite()
-    # testBranchInst()
-    testStoreInstr()
+    testBranchInst()
+    # testStoreInstr()
 
     ################ test add ####################
     # print()

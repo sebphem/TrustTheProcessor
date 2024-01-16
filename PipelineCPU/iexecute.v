@@ -1,3 +1,44 @@
+`define OPCODE_COMPUTE    7'b0110011
+`define OPCODE_COMPUTE_IMM 7'b0010011
+`define OPCODE_BRANCH     7'b1100011
+`define OPCODE_LOAD       7'b0000011
+`define OPCODE_JMP        7'b1101111
+`define OPCODE_JMP_LINK   7'b1100111
+`define OPCODE_STORE      7'b0100011 
+`define OPCODE_LUI       7'b0110111
+`define OPCODE_AUIPC     7'b0010111
+`define FUNC_ADD      3'b000
+`define AUX_FUNC_ADD  7'b0000000
+`define AUX_FUNC_SUB  7'b0100000
+`define SIZE_BYTE  2'b00
+`define SIZE_HWORD 2'b01
+`define SIZE_WORD  2'b10
+`define PCSel_4 1'b0
+`define PCSel_ALU 1'b1
+`define ImmSel_I 3'b000
+`define ImmSel_B 3'b001
+`define ImmSel_J 3'b010
+`define ImmSel_U 3'b011
+`define ImmSel_S 3'b100
+`define ASel_Reg 1'b0
+`define ASel_PC 1'b1
+`define BSel_Reg 1'b0
+`define BSel_IMM 1'b1
+`define MemRW_Write 1'b0
+`define MemRW_Read 1'b1
+`define RWrEn_Enable 1'b0
+`define RWrEn_Disable 1'b1
+`define WBSel_ALU 2'b00
+`define WBSel_PC4 2'b01
+`define WBSel_Mem 2'b10
+`define WBSel_Imm 2'b11
+`define BEQ 3'b000
+`define BNE 3'b001
+`define BLT 3'b100
+`define BGE 3'b101
+`define BLTU 3'b110
+`define BGEU 3'b111
+
 module IExecute(
     input halt_in_ex,
     input [31:0] Instr_in_ex,
@@ -85,19 +126,48 @@ endmodule
 // ExecutionUnit
 module ExecutionUnit(out, opA, opB, func, auxFunc, opcode, halt);
 output reg [31:0] out;
+output reg [63:0] mulout;
 input [31:0] opA, opB;
 input [2:0] func;
 input [6:0] auxFunc;
 input [6:0] opcode;
 output reg halt;
-// Place your code here
 wire signed [31:0] s_opA, s_opB;
 assign s_opA = opA;
 assign s_opB = opB;
 always @(*) begin
     halt <= 1'b0;
     if(opcode == `OPCODE_COMPUTE || opcode == `OPCODE_COMPUTE_IMM) begin
-        case (func)
+        if (auxFunc == 7'b0000001) begin
+            case (func)
+                3'b000: begin 
+                        out = {s_opA * s_opB};
+                        out[31] = s_opA[31] ^ s_opB[31];
+                end
+                3'b001: begin 
+                        mulout = s_opA * s_opB;
+                        out = mulout[63:32];
+                end
+                3'b010: begin 
+                    
+                        mulout = s_opA * $signed({32'b0, opB});
+                        out = mulout[63:32];
+                end
+                3'b011: begin 
+                        mulout = opA * opB;
+                        out = mulout[63:32];
+                end
+                3'b100: out = s_opA / s_opB;
+                3'b101: out = opA / opB;
+                3'b110: out = s_opA % s_opB;
+                3'b111: out = opA % opB;
+                default: begin 
+                    halt <= 1'b1;
+                    out = 32'b0;
+                end
+            endcase
+        end else begin
+            case (func)
             3'b000: 
                 if(auxFunc == 7'b0000000 || opcode == `OPCODE_COMPUTE_IMM)
                     out = opA + opB;
@@ -119,9 +189,9 @@ always @(*) begin
                 out = 32'b0;
             end
         endcase
+        end
     end
-    else
-        out = opA + opB;
+    else out = opA + opB;
 end
 endmodule // ExecutionUnit
 
