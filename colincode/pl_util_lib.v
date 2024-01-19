@@ -61,6 +61,7 @@
 // out - out, halt
 module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
     output reg [31:0] out;
+    output reg [63:0] mulout;
     output reg halt;
     input [6:0] opcode;
     input [31:0] opA, opB;
@@ -74,6 +75,35 @@ module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
     always @(*) begin
         halt = 1'b0; // default no halt
         if (opcode == `OPCODE_COMPUTE || opcode == `OPCODE_ICOMPUTE) begin 
+             if (auxFunc == 7'b0000001) begin
+            case (func)
+                3'b000: begin 
+                        out = {sopA * sopB};
+                        out[31] = sopA[31] ^ sopB[31];
+                end
+                3'b001: begin 
+                        mulout = sopA * sopB;
+                        out = mulout[63:32];
+                end
+                3'b010: begin 
+                    
+                        mulout = sopA * $signed({32'b0, opB});
+                        out = mulout[63:32];
+                end
+                3'b011: begin 
+                        mulout = opA * opB;
+                        out = mulout[63:32];
+                end
+                3'b100: out = sopA / sopB;
+                3'b101: out = opA / opB;
+                3'b110: out = sopA % sopB;
+                3'b111: out = opA % opB;
+                default: begin 
+                    halt <= 1'b1;
+                    out = 32'b0;
+                end
+            endcase
+        end else begin
             case(func)
                 3'b000: 
                     if (opcode == `OPCODE_ICOMPUTE)
@@ -108,6 +138,7 @@ module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
                     else
                         out = opA + opB; // default add
             endcase
+        end
         end
         else 
             out = opA + opB; // default add for all other instruction types
