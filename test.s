@@ -1,44 +1,100 @@
-add x1, x1, x1
-sub x2, x2, x1
-xor x3, x1, x3
-or x4, x1, x3
-and x5, x5, x1
-sll x6, x6, x1
-srl x7, x6, x3
-slt x8, x9, x4
-sltu x9, x9, x4
-addi x1, x1, 0x220
-xori x2, x2, 0x333
-ori x3, x3, 0x110
-andi x4, x4, 0x321
-slli x5, x1, 0x1
-srli x6, x15, 0x10
-srai x7, x15, 0x1
-slti x8, x8, -0x1
-sltiu x9, x10, -0x1
+# Towers of Hanoi
+# MIPS assembly implementation (tested with MARS)
 
-for (int i = 0; i < n; i++) {
-    mem[addr+i+n] = mem[i] & 0xdf
-}
+.data
+prompt: .asciiz "Enter a number: "
+part1: .asciiz "\nMove disk "
+part2: .asciiz " from rod "
+part3: .asciiz " to rod "
 
+.text
+.globl main
+main:
+    li $v0,  4          # print string
+    la $a0,  prompt
+    syscall
+    li $v0,  5          # read integer
+    syscall
 
+    # parameters for the routine
+    add $a0, $v0, $zero # move to $a0
+    li $a1, 'A'
+    li $a2, 'B'
+    li $a3, 'C'
 
-data starts at 0x4c
+    jal hanoi           # call hanoi routine
 
-x15 <- n + addr
-x16 <- 0 + addr
+    li $v0, 10          # exit
+    syscall
 
-jal cond
-body:
+hanoi:
 
-    lw x18, 0(x16)
-    andi x18, x18, 0xdf
-    addi x16, x16, 1
-    sh x18, 0(x16)
-    
-cond:
-    bne x15, x16, body
-    nop
-    addr
+    #save in stack
+    addi $sp, $sp, -20 
+    sw   $ra, 0($sp)
+    sw   $s0, 4($sp)
+    sw   $s1, 8($sp)
+    sw   $s2, 12($sp)
+    sw   $s3, 16($sp)
 
-    
+    add $s0, $a0, $zero
+    add $s1, $a1, $zero
+    add $s2, $a2, $zero
+    add $s3, $a3, $zero
+
+    addi $t1, $zero, 1
+    beq $s0, $t1, output
+
+    recur1:
+
+        addi $a0, $s0, -1
+        add $a1, $s1, $zero
+        add $a2, $s3, $zero
+        add $a3, $s2, $zero
+        jal hanoi
+
+        j output
+
+    recur2:
+
+        addi $a0, $s0, -1
+        add $a1, $s3, $zero
+        add $a2, $s2, $zero
+        add $a3, $s1, $zero
+        jal hanoi
+
+    exithanoi:
+
+        lw   $ra, 0($sp)        # restore registers from stack
+        lw   $s0, 4($sp)
+        lw   $s1, 8($sp)
+        lw   $s2, 12($sp)
+        lw   $s3, 16($sp)
+
+        addi $sp, $sp, 20       # restore stack pointer
+
+        jr $ra
+
+    output:
+
+        li $v0,  4              # print string
+        la $a0,  part1
+        syscall
+        li $v0,  1              # print integer
+        add $a0, $s0, $zero
+        syscall
+        li $v0,  4              # print string
+        la $a0,  part2
+        syscall
+        li $v0,  11             # print character
+        add $a0, $s1, $zero
+        syscall
+        li $v0,  4              # print string
+        la $a0,  part3
+        syscall
+        li $v0,  11             # print character
+        add $a0, $s2, $zero
+        syscall
+
+        beq $s0, $t1, exithanoi
+        j recur2

@@ -623,16 +623,34 @@ def testBranchInst():
     # )
 
     # beq, misaligned
+    # makeMemoryFile("mem_in.hex",
+    # "33\n00\n00\n00",
+    # "33\n00\n00\n00",
+    # HexBigToLilEndian("0x00730963"),
+    # HexBigToLilEndian("0x12345678"),
+    # HexBigToLilEndian("0x12345678"),
+    # HexBigToLilEndian("0x12345678"),
+    # HexBigToLilEndian("0x12345678"),
+    # "00\n00\n00\n00",
+    # )
+
     makeMemoryFile("mem_in.hex",
-    "33\n00\n00\n00",
-    "33\n00\n00\n00",
-    HexBigToLilEndian("0x00730963"),
-    HexBigToLilEndian("0x12345678"),
-    HexBigToLilEndian("0x12345678"),
-    HexBigToLilEndian("0x12345678"),
-    HexBigToLilEndian("0x12345678"),
-    "00\n00\n00\n00",
+    HexBigToLilEndian("0x01c0006f"), # jal x0, 28
+
+    HexBigToLilEndian("0xffc78793"),# // addi x15, x15, -4
+    HexBigToLilEndian("0x00d7a023"),# // sw x13, 0(x15)
+    HexBigToLilEndian("0x00070067"),# // jalr x0, 0(x14)
+    
+    HexBigToLilEndian("0x0007a683"),# // lw x13, 0(x15)  
+    HexBigToLilEndian("0x00478793"),# // addi x15, x15, 4        
+    HexBigToLilEndian("0x00070067"),# // jalr x0, 0(x14)     
+
+    HexBigToLilEndian("0x0ff68693"),# // addi x13, x13, 0xff
+    HexBigToLilEndian("0xfe5ff76f"),# // jal x14, -28 (push)
+    HexBigToLilEndian("0x00168693"),# // addi x13, x13, 1
+    HexBigToLilEndian("0xfe9ff76f"),# // jal x14, -24 (pop)
     )
+
 
     # # branch ne
     # makeMemoryFile("mem_in.hex",
