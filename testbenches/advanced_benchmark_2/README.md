@@ -31,24 +31,16 @@ or 0x0223. The way you read them is from left to right, for example:
 0x0213 --> disk 2 is moved from tower 1 to tower 3.
 
 For example, if you were to set n to 2, this is the starting state, with 2 disks on tower 1:
-     |         |         |
-    ---        |         |
-   ------      |         |
+![Local Image](readme_pictures/4.PNG)
 
 The first move is 0x0112:
-     |         |         |
-     |         |         |
-   ------     ---        |
+![Local Image](readme_pictures/1.PNG)
 
 Next 0x0213:
-     |         |         |
-     |         |         |
-     |        ---      ------     
+![Local Image](readme_pictures/2.PNG)   
 
 And finally 0x0123:
-     |         |         |
-     |         |        ---
-     |         |       ------   
+![Local Image](readme_pictures/3.PNG)
 
 You can test your processor to see these halfword moves in your own memory, at address 0xb0. 
 
