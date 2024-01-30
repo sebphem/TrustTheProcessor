@@ -1,10 +1,10 @@
 // 0x00000000
 00000000
-000186A0 // add 100 thousand every iteration
+00002710 // add 10 thousand every iteration
 00000000
-000F4240 // store and load every 3 million
+000186A0 // store and load every 100 thousand
 00000000
-09E7DF98 // total revenue made by northwestern from student tuition and housing ($166,191,000)
+09e7df98 // total revenue made by northwestern from student tuition and housing ($166,191,000)
 00000000 
 00000000
 00000000
