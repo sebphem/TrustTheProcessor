@@ -14,4 +14,4 @@ After running, to check for correctness, check to the value in your reg_out at a
 Be careful with using really small iterative numbers and really large totals, as you could end up taking hundreds of millions of cycles.
 
 If you want to test your pure adding speed, you can set the store and load value to the total (so it will only store and load once), 
-and if you want to store and load every iteration, you can set it to the iterative number.
+and if you want to store and load every iteration, you can set it to the iterative number.  
