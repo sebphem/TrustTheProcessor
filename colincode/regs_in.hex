@@ -1,11 +1,11 @@
 // 0x00000000
 00000000
-0000000a // add 10 each iteration
-00000000 // starts at 0
-00000064 // check if total is equal to 100
+00002710 // add 10 thousand every iteration
 00000000
-000000ca // total northwestern endowment assets
+000186A0 // store and load every 100 thousand
 00000000
+09e7df98 // total revenue made by northwestern from student tuition and housing ($166,191,000)
+00000000 
 00000000
 00000000
 00000000
