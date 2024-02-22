@@ -188,32 +188,28 @@ endmodule // Branch Unit
 module StallUnit (
     //input
     RegA_ID, RegB_ID,
-    RegA_EX, RegB_EX,
-    RegA_MEM, RegB_MEM,
-    opcode_ID, opcode_EX, opcode_MEM,
-    Rdst_EX, Rdst_MEM,
+    opcode_EX,
+    Rdst_EX,
     //outputs
     ID_stall, IF_stall
 );
-    input [4:0] RegA_ID, RegB_ID,
-                RegA_EX, RegB_EX,
-                RegA_MEM, RegB_MEM;
-    input [6:0] opcode_ID, opcode_EX, opcode_MEM;;
+    input [4:0] RegA_ID, RegB_ID;
+    input [6:0] opcode_EX;
 
-    input [4:0] Rdst_EX, Rdst_MEM;
+    input [4:0] Rdst_EX;
 
     output reg ID_stall, IF_stall;
     always@(*) begin
         if(opcode_EX == `OPCODE_LOAD)begin
-            if(RegA_ID == Rdst_EX || Regb_ID == Rdst_EX) begin
+            if(RegA_ID == Rdst_EX || RegB_ID == Rdst_EX) begin
                 ID_stall = 1'b1;
                 IF_stall = 1'b1;
             end
         end
-        // this is forwarding
-        // else if(opcode_) begin
-
-        // end
+        else begin
+                ID_stall = 1'b0;
+                IF_stall = 1'b0;
+        end
     end
 endmodule
 
@@ -221,30 +217,26 @@ module ForwardingUnit(
     //input
     RegA_ID, RegB_ID,
     RegA_ID_cur, RegB_ID_cur,
-    RegA_EX, RegB_EX,
-    RegA_MEM, RegB_MEM,
-    opcode_ID, opcode_EX, opcode_MEM,
-    Rdst_Ex_Data, Rdst_MEM_Data,
+    opcode_EX, opcode_MEM,
+    Rdst_EX_Data, Rdst_MEM_Data,
     Rdst_EX_Name, Rdst_MEM_Name,
     //outputs
     RegA_ID_Data, RegB_ID_Data
 );
-    input [4:0] RegA_ID, RegB_ID,
-                RegA_EX, RegB_EX,
-                RegA_MEM, RegB_MEM;
-    input [6:0] opcode_ID, opcode_EX, opcode_MEM, opcode_WB;
+    input [4:0] RegA_ID, RegB_ID;
+    input [6:0] opcode_EX, opcode_MEM;
 
     input [4:0] Rdst_EX_Name, Rdst_MEM_Name;
     input [31:0] Rdst_EX_Data, Rdst_MEM_Data;
     input [31:0] RegA_ID_cur, RegB_ID_cur;
 
-    output [31:0] RegA_ID_Data, RegB_ID_Data;
+    output reg [31:0] RegA_ID_Data, RegB_ID_Data;
     always@(*)begin
         //mem-ex and mem-mem forwarding
         //are only concerned about loads
         if(opcode_MEM == `OPCODE_LOAD) begin
             RegA_ID_Data = (Rdst_MEM_Name == RegA_ID) ? Rdst_MEM_Data : RegA_ID_cur;
-            RegA_ID_Data = (Rdst_MEM_Name == RegA_ID) ? Rdst_MEM_Data : RegA_ID_cur;
+            RegB_ID_Data = (Rdst_MEM_Name == RegB_ID) ? Rdst_MEM_Data : RegB_ID_cur;
         end
         //ex-ex forwarding
         //works with everything but loads, we don't need to forward data in stores

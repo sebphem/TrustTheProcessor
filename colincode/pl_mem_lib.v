@@ -22,10 +22,10 @@ endmodule // InstMem
 
 module DataMem(Addr, Size, DataIn, DataOut, WEN, CLK);
    input [31:0] Addr;
-   input [1:0] 	Size;   
-   input [31:0] DataIn;   
+   input [1:0] 	Size;
+   input [31:0] DataIn;
    output [31:0] DataOut;
-   reg [31:0] DataOut;   
+   reg [31:0] DataOut;
    input      WEN, CLK;
    reg [7:0] 	Mem[0:1024];
 

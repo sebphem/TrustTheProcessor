@@ -120,8 +120,8 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
 endmodule
 
 module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D, 
-                        MemWrEn_D, RegWrEn_D, LoadType_D, MemSize_D, 
-                        ALUsrcA_E, ALUsrcB_E, WBSel_E, ImmSel_E, 
+                        MemWrEn_D, RegWrEn_D, LoadType_D, MemSize_D,
+                        ALUsrcA_E, ALUsrcB_E, WBSel_E, ImmSel_E,
                         MemWrEn_E, RegWrEn_E, LoadType_E, MemSize_E,
                         halt_D, halt_E,
                         NEW_IN, NEW_OUT,
@@ -295,30 +295,23 @@ module EX_MEM_ctrl_reg(WEN, CLK, RST, MemWrEn_E, RegWrEn_E, WBSel_E, LoadType_E,
         end
 endmodule
 
-module MEM_WB_data_reg(WEN, CLK, RST, ALUresult_M, MemReadData_M, Immediate_M, PC_Plus4_M, Rdst_M, 
-                        ALUresult_W, MemReadData_W, Immediate_W, PC_Plus4_W, Rdst_W);
+module MEM_WB_data_reg(WEN, CLK, RST, Rdst_Data_M, Rdst_Data_W, Rdst_M, Rdst_W);
     input WEN, CLK, RST;
-    input [31:0] ALUresult_M, MemReadData_M, Immediate_M, PC_Plus4_M;
-    output reg [31:0] ALUresult_W, MemReadData_W, Immediate_W, PC_Plus4_W;
+    input [31:0] Rdst_Data_M;
+    output reg [31:0] Rdst_Data_W;
     input [4:0] Rdst_M;
     output reg [4:0] Rdst_W;
 
     always @ (negedge CLK or negedge RST)
         if (!RST) begin
             // set all vals to 0
-            ALUresult_W <= 32'b0;
-            MemReadData_W <= 32'b0;
-            PC_Plus4_W <= 32'b0;
-            Immediate_W <= 32'b0;
+            Rdst_Data_W <= 32'b0;
             Rdst_W <= 5'b0;
         end else if (!WEN) begin
             // write all in values to outs
-            ALUresult_W <= ALUresult_M;
-            MemReadData_W <= MemReadData_M;
-            PC_Plus4_W <= PC_Plus4_M;
-            Immediate_W <= Immediate_M;
+            Rdst_Data_W <= Rdst_Data_M;
             Rdst_W <= Rdst_M;
-        end 
+        end
 endmodule
 
 module MEM_WB_ctrl_reg(WEN, CLK, RST, RegWrEn_M,

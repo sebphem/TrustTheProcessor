@@ -32,7 +32,7 @@ module tb;
       #0 $readmemh("regs_in.hex", CPU.ID.RF.Mem);
 
       // Feel free to modify to inspect whatever you want
-      #0 $monitor($time,, "PC=%08x IR=%08x halt=%x exit=%x", CPU.IF.PC, CPU.IF.InstWord, halt, exit);
+      #0 $monitor($time,, "PC=%08x IR=%08x halt=%x exit=%x IF_Stall=%x I_Stall=%x", CPU.IF.PC, CPU.IF.InstWord, halt, exit, CPU.IF_stall_out, CPU.ID_stall_out);
 
       // Exit???
       wait(exit);
