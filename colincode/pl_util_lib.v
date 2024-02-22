@@ -74,7 +74,7 @@ module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
 
     always @(*) begin
         halt = 1'b0; // default no halt
-        if (opcode == `OPCODE_COMPUTE || opcode == `OPCODE_ICOMPUTE) begin 
+        if (opcode == `OPCODE_COMPUTE) begin 
              if (auxFunc == 7'b0000001) begin
             case (func)
                 3'b000: begin 
