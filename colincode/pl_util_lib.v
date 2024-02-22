@@ -55,7 +55,7 @@
 `define LOAD_BYTE_U 3'b100
 `define LOAD_HALF_U 3'b101
 
-// 
+//
 // ArithmeticLogicUnit
 // in - opcode, opA, opB, funct3, funct7
 // out - out, halt
@@ -180,10 +180,80 @@ module BranchUnit(opA, opB, funct3, opcode, out, halt);
                 out = `BR_FALSE; // default
             endcase
         end
-    else 
+    else
         out = `BR_FALSE; // default
   end
 endmodule // Branch Unit
+
+module StallUnit (
+    //input
+    RegA_ID, RegB_ID,
+    RegA_EX, RegB_EX,
+    RegA_MEM, RegB_MEM,
+    opcode_ID, opcode_EX, opcode_MEM,
+    Rdst_EX, Rdst_MEM,
+    //outputs
+    ID_stall, IF_stall
+);
+    input [4:0] RegA_ID, RegB_ID,
+                RegA_EX, RegB_EX,
+                RegA_MEM, RegB_MEM;
+    input [6:0] opcode_ID, opcode_EX, opcode_MEM;;
+
+    input [4:0] Rdst_EX, Rdst_MEM;
+
+    output reg ID_stall, IF_stall;
+    always@(*) begin
+        if(opcode_EX == `OPCODE_LOAD)begin
+            if(RegA_ID == Rdst_EX || Regb_ID == Rdst_EX) begin
+                ID_stall = 1'b1;
+                IF_stall = 1'b1;
+            end
+        end
+        // this is forwarding
+        // else if(opcode_) begin
+
+        // end
+    end
+endmodule
+
+module ForwardingUnit(
+    //input
+    RegA_ID, RegB_ID,
+    RegA_ID_cur, RegB_ID_cur,
+    RegA_EX, RegB_EX,
+    RegA_MEM, RegB_MEM,
+    opcode_ID, opcode_EX, opcode_MEM,
+    Rdst_Ex_Data, Rdst_MEM_Data,
+    Rdst_EX_Name, Rdst_MEM_Name,
+    //outputs
+    RegA_ID_Data, RegB_ID_Data
+);
+    input [4:0] RegA_ID, RegB_ID,
+                RegA_EX, RegB_EX,
+                RegA_MEM, RegB_MEM;
+    input [6:0] opcode_ID, opcode_EX, opcode_MEM, opcode_WB;
+
+    input [4:0] Rdst_EX_Name, Rdst_MEM_Name;
+    input [31:0] Rdst_EX_Data, Rdst_MEM_Data;
+    input [31:0] RegA_ID_cur, RegB_ID_cur;
+
+    output [31:0] RegA_ID_Data, RegB_ID_Data;
+    always@(*)begin
+        //mem-ex and mem-mem forwarding
+        //are only concerned about loads
+        if(opcode_MEM == `OPCODE_LOAD) begin
+            RegA_ID_Data = (Rdst_MEM_Name == RegA_ID) ? Rdst_MEM_Data : RegA_ID_cur;
+            RegA_ID_Data = (Rdst_MEM_Name == RegA_ID) ? Rdst_MEM_Data : RegA_ID_cur;
+        end
+        //ex-ex forwarding
+        //works with everything but loads, we don't need to forward data in stores
+        if(opcode_EX != `OPCODE_LOAD && opcode_EX != `OPCODE_STORE) begin
+            RegA_ID_Data = (Rdst_EX_Name == RegA_ID) ? Rdst_EX_Data : RegA_ID_cur;
+            RegB_ID_Data = (Rdst_EX_Name == RegB_ID) ? Rdst_EX_Data : RegB_ID_cur;
+        end
+    end
+endmodule
 
 //
 // ControlUnit
@@ -264,17 +334,17 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                     PCSel = `PC_PCPLUS4; // assume never taken, will change if taken
                     ImmSel = `B_IMM; // B-type immediate
                     RWrEn = 1'b1; // register write disabled
-                    ALUsrcA = `ALU_A_PC; // ALU source A is PC 
+                    ALUsrcA = `ALU_A_PC; // ALU source A is PC
                     ALUsrcB = `ALU_B_IMM; // ALU source B is immediate
                     MemWrEn = 1'b1; // mem write disabled
                     WBSel = `WB_UNDEF; // undefined writeback
                 end
             `OPCODE_JAL: // JAL
                 begin
-                    PCSel = `PC_ALUOUT; // PC source is ALU output 
-                    ImmSel = `J_IMM; // J-type immediate 
+                    PCSel = `PC_ALUOUT; // PC source is ALU output
+                    ImmSel = `J_IMM; // J-type immediate
                     RWrEn = 1'b0; // register write enabled
-                    ALUsrcA = `ALU_A_PC; // ALU source A is PC 
+                    ALUsrcA = `ALU_A_PC; // ALU source A is PC
                     ALUsrcB = `ALU_B_IMM; // ALU source B is immediate
                     MemWrEn = 1'b1; // mem write disabled
                     WBSel = `WB_PC4; // write PC + 4 to register
@@ -314,83 +384,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
         endcase
     end
 endmodule
-
-module HazardUnit(RegA_ID, RegB_ID, opcode_ID, 
-                    opcode_EX, Rdst_EX, opcode_MEM, Rdst_MEM, 
-                    EX_stall, MEM_stall);
-    input [4:0] RegA_ID, RegB_ID;
-    input [6:0] opcode_ID;
-    
-    input [4:0] Rdst_EX, Rdst_MEM;
-    input [6:0] opcode_EX, opcode_MEM;
-    
-    output reg EX_stall, MEM_stall;
-    
-    reg [1:0] ID_use;
-    reg EX_affect, MEM_affect;
-
-    always @(*) begin
-        case(opcode_ID)
-            `OPCODE_COMPUTE: ID_use = 2'b01;
-            `OPCODE_ICOMPUTE: ID_use = 2'b10;
-            `OPCODE_LOAD: ID_use = 2'b10;
-            `OPCODE_STORE:  ID_use = 2'b01;
-            `OPCODE_BRANCH: ID_use = 2'b01;
-            default: ID_use = 2'b00;
-        endcase
-
-        case(opcode_EX)
-            `OPCODE_COMPUTE: EX_affect = 1'b1;
-            `OPCODE_ICOMPUTE: EX_affect = 1'b1;
-            `OPCODE_LOAD: EX_affect = 1'b1;
-            `OPCODE_AUIPC: EX_affect = 1'b1;
-            `OPCODE_LUI: EX_affect = 1'b1;
-            `OPCODE_JAL: EX_affect = 1'b1;
-            `OPCODE_JALR: EX_affect = 1'b1;
-            default: EX_affect = 1'b0;
-        endcase
-
-        case(opcode_MEM)
-            `OPCODE_COMPUTE: MEM_affect = 1'b1;
-            `OPCODE_ICOMPUTE: MEM_affect = 1'b1;
-            `OPCODE_LOAD: MEM_affect = 1'b1;
-            `OPCODE_AUIPC: MEM_affect = 1'b1;
-            `OPCODE_LUI: MEM_affect = 1'b1;
-            `OPCODE_JAL: MEM_affect = 1'b1;
-            `OPCODE_JALR: MEM_affect = 1'b1;
-            default: MEM_affect = 1'b0;
-        endcase
-
-        // hazard possible iff EX_affect and ID_use are NOT 0
-        if ((ID_use != 2'b00) && (MEM_affect == 1'b1))
-            begin
-                case(ID_use)
-                    2'b01: MEM_stall = (((RegA_ID == Rdst_MEM) || (RegB_ID == Rdst_MEM)) ? 1'b1 : 1'b0);
-                    2'b10: MEM_stall = ((RegA_ID == Rdst_MEM) ? 1'b1 : 1'b0);
-                    default: MEM_stall = 1'b0;
-                endcase
-
-                if(Rdst_MEM == 0)
-                    MEM_stall = 1'b0;
-            end
-        else 
-            MEM_stall = 1'b0;
-
-        if ((ID_use != 2'b00) && (EX_affect == 1'b1))
-            begin
-                case(ID_use)
-                    2'b01: EX_stall = (((RegA_ID == Rdst_EX) || (RegB_ID == Rdst_EX)) ? 1'b1 : 1'b0);
-                    2'b10: EX_stall = ((RegA_ID == Rdst_EX) ? 1'b1 : 1'b0);
-                    default: EX_stall = 1'b0;
-                endcase
-
-                if (Rdst_EX == 0)
-                    EX_stall = 1'b0;
-            end
-        else 
-            EX_stall = 1'b0;
-    end
-endmodule // HazardUnit
 
 // ImmediateGenerator
 // in - InstWord, ImmSel

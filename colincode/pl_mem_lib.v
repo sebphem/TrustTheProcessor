@@ -65,7 +65,7 @@ module RegFile(AddrA, DataOutA,
 	       AddrW, DataInW, WenW, CLK);
    input [4:0] AddrA, AddrB, AddrW;
    output [31:0] DataOutA, DataOutB;
-   reg [31:0] DataOutA, DataOutB;   
+   reg [31:0] DataOutA, DataOutB;
    input [31:0]  DataInW;
    input 	 WenW, CLK;
    reg [31:0] 	 Mem[0:31];
@@ -77,6 +77,7 @@ module RegFile(AddrA, DataOutA,
    end
 
    always @ (negedge CLK) begin
+      // WenW is low active: 1 is no write, 0 is write
      if (!WenW) begin
        Mem[AddrW] <= DataInW;
      end

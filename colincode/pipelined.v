@@ -126,6 +126,10 @@ module PipelinedCPU(halt, CLK, rst);
     wire RegWrEn_out_M,             RegWrEn_in_W; // goes straight back to regfile
     wire [1:0] WBSel_out_M,         WBSel_in_W;
 
+    // MEM --> EX full forwarding
+    wire [31:0] FF_out_M;
+
+
     // WB --> ID data to writeback to regfile
     wire [31:0] RegWrData_out_W;
 
@@ -136,7 +140,7 @@ module PipelinedCPU(halt, CLK, rst);
     wire halt_MEM_in, halt_MEM_out;
     wire halt_WB_in, halt_WB_out;
     // if any halt is in progress, stop the PC and don't continue to execute
-    wire halt_in_progress; 
+    wire halt_in_progress;
     assign halt_in_progress = halt_ID_out || halt_EX_out || halt_MEM_out || halt_WB_out;
 
     // initialization stage wires
@@ -169,19 +173,24 @@ module PipelinedCPU(halt, CLK, rst);
                             .InstWord_F(InstWord_out_F),    .InstWord_D(InstWord_in_D), 
                             .PC_F(PC_out_F),                .PC_D(PC_in_D), 
                             .PC_Plus4_F(PC_Plus4_out_F),    .PC_Plus4_D(PC_Plus4_in_D),
-                            .NEW(IF_ID_NEW),               
+                            .NEW(IF_ID_NEW),
                             .nop(PCsel_EX_IF), .stall((hazard_EX || hazard_MEM)));
 
     // stage 2 - ID
     InstructionDecode ID(.CLK(CLK), .InstWord_in(InstWord_in_D), .PC_in(PC_in_D), .PC_Plus4_in(PC_Plus4_in_D),
                         .InstWord_out(InstWord_out_D), .PC_out(PC_out_D), .PC_Plus4_out(PC_Plus4_out_D),
                         .RegWrData_WB(RegWrData_out_W), .RegWrEn_WB(RegWrEn_in_W), .Rdst_WB(Rdst_in_W),
-                        .RegAData(RegAData_out_D), .RegBData(RegBData_out_D), .Rdst(Rdst_out_D),
-                        .ALUsrcA(ALUsrcA_out_D), .ALUsrcB(ALUsrcB_out_D), .WBSel(WBSel_out_D), .ImmSel(ImmSel_out_D), 
-                        .MemWrEn(MemWrEn_out_D), .RegWrEn(RegWrEn_out_D), .LoadType(LoadType_out_D), .MemSize(MemSize_out_D),    
+                        .RegAData(RegAData_out_D), .RegBData(RegBData_out_D),
+                        .Rdst(Rdst_out_D),
+                        .ALUsrcA(ALUsrcA_out_D), .ALUsrcB(ALUsrcB_out_D), .WBSel(WBSel_out_D), .ImmSel(ImmSel_out_D),
+                        .MemWrEn(MemWrEn_out_D), .RegWrEn(RegWrEn_out_D), .LoadType(LoadType_out_D), .MemSize(MemSize_out_D),
+                        //reg names
                         .RegA(RegA_out_D), .RegB(RegB_out_D),
                         .halt_ID_out(halt_ID_out),
-                        .isNew(IF_ID_NEW));
+                        .isNew(IF_ID_NEW)
+                        //EX-EX FORWARDING
+                        // .EXRegDst(RegBData_out_E),.EXRegVal(Rdst_out_E)
+                        );
 
     // hazard detection
     HazardUnit HU(.RegA_ID(RegA_out_D), .RegB_ID(RegB_out_D), .opcode_ID(InstWord_in_D[6:0]), 
@@ -189,18 +198,27 @@ module PipelinedCPU(halt, CLK, rst);
                 .opcode_MEM(InstWord_in_M[6:0]), .Rdst_MEM(Rdst_in_M),
                 .EX_stall(hazard_EX), .MEM_stall(hazard_MEM));
 
-    // transfer to EX
-    ID_EX_data_reg ID_EX_data(.WEN(1'b0), .CLK(CLK), .RST(rst), 
-                            .InstWord_D(InstWord_out_D),    .InstWord_E(InstWord_in_E), 
-                            .PC_D(PC_out_D),                .PC_E(PC_in_E), 
-                            .PC_Plus4_D(PC_Plus4_out_D),    .PC_Plus4_E(PC_Plus4_in_E), 
-                            .RegAData_D(RegAData_out_D),    .RegAData_E(RegAData_in_E), 
-                            .RegBData_D(RegBData_out_D),    .RegBData_E(RegBData_in_E), 
-                            .Rdst_D(Rdst_out_D),            .Rdst_E(Rdst_in_E),
-                            .nop((PCsel_EX_IF || hazard_EX)), 
-                            .stall(hazard_MEM_only));
+    Forwarding
 
-    ID_EX_ctrl_reg ID_EX_ctrl(.WEN(1'b0), .CLK(CLK), .RST(rst), 
+    // transfer to EX
+    ID_EX_data_reg ID_EX_data(.WEN(1'b0), .CLK(CLK), .RST(rst),
+                            .InstWord_D(InstWord_out_D),    .InstWord_E(InstWord_in_E),
+                            .PC_D(PC_out_D),                .PC_E(PC_in_E),
+                            .PC_Plus4_D(PC_Plus4_out_D),    .PC_Plus4_E(PC_Plus4_in_E),
+                            .RegAData_D(RegAData_out_D),    .RegAData_E(RegAData_in_E),
+                            .RegBData_D(RegBData_out_D),    .RegBData_E(RegBData_in_E),
+                            .Rdst_D(Rdst_out_D),            .Rdst_E(Rdst_in_E),
+                            .nop((PCsel_EX_IF || hazard_EX)),
+                            .stall(hazard_MEM_only),
+                            //reg names for full forwarding
+                            .RegAName_D(RegA_out_D), .RegBName_D(RegB_out_D),
+                            // full forwarding
+                            .FF_MEM_in(FF_out_M), .FF_MEM_Rdst(Rdst_out_M), .FF_MEM_APPLICABLE(RegWrEn_out_M),
+                            // full forwarding
+                            // only need to worry about the output of the alu, because nothing else of use is coming out from there
+                            .FF_EX_in(ALUresult_out_E), .FF_EX_Rdst(Rdst_out_E), .FF_EX_APPLICABLE(RegWrEn_out_E));
+
+    ID_EX_ctrl_reg ID_EX_ctrl(.WEN(1'b0), .CLK(CLK), .RST(rst),
                             .ALUsrcA_D(ALUsrcA_out_D),      .ALUsrcA_E(ALUsrcA_in_E),
                             .ALUsrcB_D(ALUsrcB_out_D),      .ALUsrcB_E(ALUsrcB_in_E),
                             .WBSel_D(WBSel_out_D),          .WBSel_E(WBSel_in_E),
@@ -211,29 +229,29 @@ module PipelinedCPU(halt, CLK, rst);
                             .MemSize_D(MemSize_out_D),      .MemSize_E(MemSize_in_E),
                             .halt_D(halt_ID_out),           .halt_E(halt_EX_in),
                             .NEW_IN(IF_ID_NEW),             .NEW_OUT(ID_EX_NEW),
-                            .nop((PCsel_EX_IF || hazard_EX)), 
+                            .nop((PCsel_EX_IF || hazard_EX)),
                             .stall(hazard_MEM_only));
 
     // stage 3 - EX
     Execute EX(     // inputs
-                    .InstWord(InstWord_in_E), .PC(PC_in_E), .PC_Plus4(PC_Plus4_in_E), 
+                    .InstWord(InstWord_in_E), .PC(PC_in_E), .PC_Plus4(PC_Plus4_in_E),
                     .RegAData(RegAData_in_E), .RegBData(RegBData_in_E), .Rdst(Rdst_in_E),
-                    .ALUsrcA(ALUsrcA_in_E), .ALUsrcB(ALUsrcB_in_E), .WBSel(WBSel_in_E), 
+                    .ALUsrcA(ALUsrcA_in_E), .ALUsrcB(ALUsrcB_in_E), .WBSel(WBSel_in_E),
                     .ImmSel(ImmSel_in_E), .MemWrEn(MemWrEn_in_E), .RegWrEn(RegWrEn_in_E),
                     .LoadType(LoadType_in_E), .MemSize(MemSize_in_E),
                     .isNew(ID_EX_NEW),
                     // outputs
-                    .ALUout(ALUresult_out_E), .RegBData_out(RegBData_out_E), .PC_Plus4_out(PC_Plus4_out_E), 
-                    .Rdst_out(Rdst_out_E), .immediate(Immediate_out_E),  .MemWrEn_out(MemWrEn_out_E), 
-                    .RegWrEn_out(RegWrEn_out_E), .WBSel_out(WBSel_out_E), .LoadType_out(LoadType_out_E), 
-                    .MemSize_out(MemSize_out_E), 
-                    .PCsel(PCsel_EX_IF), .targetAddr(targetAddr_EX_IF), 
+                    .ALUout(ALUresult_out_E), .RegBData_out(RegBData_out_E), .PC_Plus4_out(PC_Plus4_out_E),
+                    .Rdst_out(Rdst_out_E), .immediate(Immediate_out_E),  .MemWrEn_out(MemWrEn_out_E),
+                    .RegWrEn_out(RegWrEn_out_E), .WBSel_out(WBSel_out_E), .LoadType_out(LoadType_out_E),
+                    .MemSize_out(MemSize_out_E),
+                    .PCsel(PCsel_EX_IF), .targetAddr(targetAddr_EX_IF),
                     .InstWord_out(InstWord_out_E),
                     // halt signal
                     .halt_EX_in(halt_EX_in), .halt_EX_out(halt_EX_out));
 
     // transfer to MEM
-    EX_MEM_data_reg EX_MEM_data(.WEN(1'b0), .CLK(CLK), .RST(rst), 
+    EX_MEM_data_reg EX_MEM_data(.WEN(1'b0), .CLK(CLK), .RST(rst),
                             .ALUresult_E(ALUresult_out_E),  .ALUresult_M(ALUresult_in_M),
                             .RegBData_E(RegBData_out_E),    .RegBData_M(RegBData_in_M),
                             .Immediate_E(Immediate_out_E),  .Immediate_M(Immediate_in_M),
@@ -261,10 +279,13 @@ module PipelinedCPU(halt, CLK, rst);
                     .isNew(EX_MEM_NEW), .InstWord(InstWord_in_M),
                     // outputs
                     .ALUresult_out(ALUresult_out_M), .PC_Plus4_out(PC_Plus4_out_M), .Immediate_out(Immediate_out_M), 
-                    .Rdst_out(Rdst_out_M), .MemReadData(MemReadData_out_M),
-                    .RegWrEn_out(RegWrEn_out_M), .WBSel_out(WBSel_out_M),
+                    .Rdst_out(Rdst_out_M),
+                    .MemReadData(MemReadData_out_M),
+                    .RegWrEn_out(RegWrEn_out_M),
                     // halt signal
-                    .halt_MEM_in(halt_MEM_in), .halt_MEM_out(halt_MEM_out));
+                    .halt_MEM_in(halt_MEM_in), .halt_MEM_out(halt_MEM_out),
+                    //full forwarding
+                    .FF_out(FF_out_M));
 
     // transfer to WB
     MEM_WB_data_reg MEM_WB_data(.WEN(1'b0), .CLK(CLK), .RST(rst), 
@@ -276,13 +297,12 @@ module PipelinedCPU(halt, CLK, rst);
 
     MEM_WB_ctrl_reg MEM_WB_ctrl(.WEN(1'b0), .CLK(CLK), .RST(rst),
                             .RegWrEn_M(RegWrEn_out_M),          .RegWrEn_W(RegWrEn_in_W),
-                            .WBSel_M(WBSel_out_M),              .WBSel_W(WBSel_in_W),
-                            .halt_M(halt_MEM_out),              .halt_W(halt_WB_in),          
+                            .halt_M(halt_MEM_out),              .halt_W(halt_WB_in),
                             .NEW_IN(EX_MEM_NEW),                .NEW_OUT(MEM_WB_NEW));
 
     // stage 5 - WB
-    WriteBack WB(.ALUresult(ALUresult_in_W), .MemReadData(MemReadData_in_W), .Immediate(Immediate_in_W), 
-                .PC_Plus4(PC_Plus4_in_W), .WBSel(WBSel_in_W), 
+    WriteBack WB(.ALUresult(ALUresult_in_W), .MemReadData(MemReadData_in_W), .Immediate(Immediate_in_W),
+                .PC_Plus4(PC_Plus4_in_W), .WBSel(WBSel_in_W),
                 .WBresult(RegWrData_out_W),
                 .halt_WB_in(halt_WB_in), .halt_WB_out(halt_WB_out));
 
@@ -294,7 +314,7 @@ endmodule
 // IN: current PC
 // OUT: InstWord, PC+4
 module InstructionFetch(CLK, RST, stall,
-                        PCSel, targetAddr, 
+                        PCSel, targetAddr,
                         InstWord, PC, PC_Plus4);
     input CLK, RST;
     input PCSel;
@@ -335,7 +355,7 @@ module InstructionDecode(InstWord_in, CLK, PC_in, PC_Plus4_in,
     input RegWrEn_WB;
     input [4:0] Rdst_WB;
     input isNew;
-    
+
     // out data
     output [31:0] RegAData, RegBData;
     output [4:0] Rdst;
@@ -393,23 +413,26 @@ endmodule
 // IN: InstWord, PC, PC+4, RegAData, RegBData, Rdst, various control signals
 // OUT: ALUout, immediate, various control signals
 module Execute(     // inputs
-                    InstWord, PC, PC_Plus4, RegAData, RegBData, Rdst,
+                    InstWord, PC, PC_Plus4, RegAName, RegAData, RegBName, RegBData, Rdst,
                     ALUsrcA, ALUsrcB, WBSel, ImmSel, MemWrEn, RegWrEn,
                     LoadType, MemSize,
                     halt_EX_in,
                     isNew,
                     // outputs
-                    ALUout, RegBData_out, PC_Plus4_out, Rdst_out, immediate,  
+                    ALUout, RegBData_out, PC_Plus4_out, Rdst_out, immediate,
                     MemWrEn_out, RegWrEn_out, WBSel_out, LoadType_out, MemSize_out,
-                    PCsel, targetAddr, InstWord_out, 
-                    halt_EX_out);
+                    PCsel, targetAddr, InstWord_out,
+                    halt_EX_out
+                    );
     // declare inputs
     input [31:0] InstWord, PC, PC_Plus4, RegAData, RegBData;
+    //ALUsrcA and B don't contain the names themselves
     input ALUsrcA, ALUsrcB, MemWrEn, RegWrEn;
     input [1:0] WBSel, MemSize;
     input [2:0] ImmSel, LoadType;
-    input [4:0] Rdst;
+    input [4:0] RegAName, RegBName, Rdst, FF_MEM_Rdst;
     input isNew;
+    input [31:0] FF_MEM_in;
 
     // declare outputs
     // data going to MEM
@@ -482,9 +505,8 @@ endmodule
 
 module MemoryAccess(CLK, ALUresult_in, RegBData, Immediate_in, PC_Plus4_in, Rdst_in,
                     MemWrEn, RegWrEn_in, WBSel_in, MemSize, LoadType, InstWord,
-                    ALUresult_out, PC_Plus4_out, Immediate_out, Rdst_out, MemReadData,
-                    RegWrEn_out, WBSel_out,
-                    halt_MEM_in, halt_MEM_out,
+                    Rdst_out, Rdst_Data_out,
+                    RegWrEn_out, halt_MEM_in, halt_MEM_out,
                     isNew);
     // inputs
     input CLK;
@@ -499,7 +521,8 @@ module MemoryAccess(CLK, ALUresult_in, RegBData, Immediate_in, PC_Plus4_in, Rdst
     output [31:0] ALUresult_out, PC_Plus4_out, Immediate_out, MemReadData;
     output [4:0] Rdst_out;
     output RegWrEn_out;
-    output [1:0] WBSel_out;
+    //choose data source
+    output [31:0] Rdst_Data_out;
 
     // halt signal
     input halt_MEM_in;
@@ -507,20 +530,27 @@ module MemoryAccess(CLK, ALUresult_in, RegBData, Immediate_in, PC_Plus4_in, Rdst
 
     // ensure data address is properly aligned
     wire alignHalt;
-    SizeCheck SC(.MemAddress(ALUresult_in), .opcode(InstWord[6:0]), 
+    SizeCheck SC(.MemAddress(ALUresult_in), .opcode(InstWord[6:0]),
                 .MemSize(MemSize), .halt(alignHalt));
 
     // access data memory
     // don't allow write if this instruction is halting
     wire [31:0] MemReadDataRaw;
-    DataMem DMEM(.Addr(ALUresult_in), .Size(MemSize), .DataIn(RegBData), 
+    DataMem DMEM(.Addr(ALUresult_in), .Size(MemSize), .DataIn(RegBData),
                 .DataOut(MemReadDataRaw), .WEN(MemWrEn || halt_MEM_out), .CLK(CLK));
 
     // sext MemReadDataRaw if necessary
     MemSext MS(.MemReadIn(MemReadDataRaw), .LoadType(LoadType), .MemReadOut(MemReadData));
 
-    // halt if MemReadData is not properly aligned 
+    // halt if MemReadData is not properly aligned
     assign halt_MEM_out = (halt_MEM_in || alignHalt) && (!isNew);
+
+    // get the correct memory to put out - THIS IS LITERALLY JUST WRITE BACK STAGE
+    //TODO GET RID OF WRITE BACK STAGE
+    assign Rdst_Data_out =  (WBSel_in == `WB_ALU) ? ALUresult_in :
+                                ((WBSel_in == `WB_MEM) ? MemReadData :
+                                    ((WBSel_in == `WB_PC4) ? PC_Plus4_in :
+                                        ((WBSel_in == `WB_IMM) ? Immediate_in: 32'b0))) ;
 
     // pass thru any signals that don't get changed by this stage
     // data signals
@@ -530,33 +560,20 @@ module MemoryAccess(CLK, ALUresult_in, RegBData, Immediate_in, PC_Plus4_in, Rdst
     assign Rdst_out = Rdst_in;
     // ctrl signals
     assign RegWrEn_out = RegWrEn_in;
-    assign WBSel_out = WBSel_in;
 endmodule
 
-module WriteBack(ALUresult, MemReadData, Immediate, 
-                PC_Plus4, WBSel, WBresult,
-                halt_WB_in, halt_WB_out);
+module WriteBack(WB_data_in, WB_data_out,
+                WBSel, halt_WB_in, halt_WB_out);
     // inputs
-    input [31:0] ALUresult, MemReadData, Immediate, PC_Plus4;
-    input [1:0] WBSel;
+    input [31:0] WB_data_in;
     // output
-    output reg [31:0] WBresult;
+    output reg [31:0] WB_data_out;
     // halt signal
     input halt_WB_in;
     output halt_WB_out;
 
     // halt can't get asserted here so just pass thru
     assign halt_WB_out = halt_WB_in;
-
-    // mux for reg file write
-    always @(*) begin
-        case (WBSel)
-            `WB_ALU: WBresult = ALUresult;
-            `WB_MEM: WBresult = MemReadData;
-            `WB_PC4: WBresult = PC_Plus4;
-            `WB_IMM: WBresult = Immediate;
-            default: WBresult = 32'b0;
-        endcase
-    end
+    assign WB_data_in = WB_data_out;
 endmodule
 

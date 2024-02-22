@@ -7,7 +7,7 @@
 // custom pipeline registers
 // designed specifically to carry needed info between pipeline stages
 module IF_ID_data_reg(WEN, CLK, RST, NEW, stall,
-                        InstWord_F, InstWord_D, PC_F, PC_D, 
+                        InstWord_F, InstWord_D, PC_F, PC_D,
                         PC_Plus4_F, PC_Plus4_D, nop);
     input WEN, CLK, RST;
     output reg NEW;
@@ -53,17 +53,25 @@ module IF_ID_data_reg(WEN, CLK, RST, NEW, stall,
         end 
 endmodule
 
-module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus4_D, PC_Plus4_E, 
-                        RegAData_D, RegAData_E, RegBData_D, RegBData_E, 
-                        Rdst_D, Rdst_E, 
-                        stall, nop);
+module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus4_D, PC_Plus4_E,
+                        RegAData_D, RegAData_E, RegBData_D, RegBData_E,
+                        RegAName_D, RegBName_D,
+                        Rdst_D, Rdst_E,
+                        stall, nop,
+                        FF_MEM_in, FF_MEM_Rdst, FF_MEM_APPLICABLE,
+                        FF_EX_in, FF_EX_Rdst, FF_EX_APPLICABLE);
     input WEN, CLK, RST;
     input [31:0] InstWord_D, PC_D, PC_Plus4_D;
     output reg [31:0] InstWord_E, PC_E, PC_Plus4_E;
     input [31:0] RegAData_D, RegBData_D;
     output reg [31:0] RegAData_E, RegBData_E;
     input [4:0] Rdst_D;
+    input [4:0] RegAName_D, RegBName_D;
     output reg [4:0] Rdst_E;
+
+    input FF_MEM_APPLICABLE, FF_EX_APPLICABLE;
+    input [31:0] FF_MEM_in, FF_EX_in;
+    input [4:0] FF_MEM_Rdst, FF_EX_Rdst;
 
     input nop, stall;
 
@@ -91,16 +99,23 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             PC_Plus4_E <= PC_Plus4_D;
             RegAData_E <= 32'b0;
             RegBData_E <= 32'b0;
-            Rdst_E <= 5'b0; 
+            Rdst_E <= 5'b0;
         end
         else if (!WEN) begin
             // write all in values to outs
             InstWord_E <= InstWord_D;
             PC_E <= PC_D;
             PC_Plus4_E <= PC_Plus4_D;
-            RegAData_E <= RegAData_D;
-            RegBData_E <= RegBData_D;
             Rdst_E <= Rdst_D;
+            //added clause for full forwarding here
+            if (!FF_MEM_APPLICABLE) begin
+                RegAData_E <= (FF_MEM_Rdst == RegAName_D) ? FF_MEM_in : RegAData_D;
+                RegBData_E <= (FF_MEM_Rdst == RegBName_D) ? FF_MEM_in : RegBData_D;
+            end
+            if (!FF_EX_APPLICABLE) begin
+                RegAData_E <= (FF_EX_Rdst == RegAName_D) ? FF_EX_in : RegAData_D;
+                RegBData_E <= (FF_EX_Rdst == RegBName_D) ? FF_EX_in : RegBData_D;
+            end
         end
 endmodule
 
@@ -144,7 +159,7 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
         end else if (stall) begin
             // maintain the same signal but with "stalled" output
             ALUsrcA_E <= ALUsrcA_E;
-            ALUsrcB_E <= ALUsrcB_E; 
+            ALUsrcB_E <= ALUsrcB_E;
             WBSel_E <= WBSel_E;
             ImmSel_E <= ImmSel_E;
             MemWrEn_E <= MemWrEn_E;
@@ -306,15 +321,13 @@ module MEM_WB_data_reg(WEN, CLK, RST, ALUresult_M, MemReadData_M, Immediate_M, P
         end 
 endmodule
 
-module MEM_WB_ctrl_reg(WEN, CLK, RST, RegWrEn_M, WBSel_M, 
-                        RegWrEn_W, WBSel_W,
-                        halt_M, halt_W,  
+module MEM_WB_ctrl_reg(WEN, CLK, RST, RegWrEn_M,
+                        RegWrEn_W,
+                        halt_M, halt_W,
                         NEW_IN, NEW_OUT);
     input WEN, CLK, RST;
     input RegWrEn_M;
     output reg RegWrEn_W;
-    input [1:0] WBSel_M;
-    output reg [1:0] WBSel_W;
     input halt_M;
     output reg halt_W;
     input NEW_IN;
@@ -324,14 +337,12 @@ module MEM_WB_ctrl_reg(WEN, CLK, RST, RegWrEn_M, WBSel_M,
         if (!RST) begin
             // set all vals to 0
             RegWrEn_W <= 1'b0;
-            WBSel_W <= 2'b0;
             halt_W <= 1'b0;
             // if just reset, this program is NEW
             NEW_OUT <= 1'b1;
         end else if (!WEN) begin
             // write all in values to outs
-            RegWrEn_W <= RegWrEn_M; 
-            WBSel_W <= WBSel_M;
+            RegWrEn_W <= RegWrEn_M;
             halt_W <= halt_M;
             // if not just reset, this program is not NEW
             NEW_OUT <= NEW_IN;
