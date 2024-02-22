@@ -61,7 +61,7 @@
 // out - out, halt
 module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
     output reg [31:0] out;
-    output reg [63:0] mulout;
+    reg [63:0] mulout;
     output reg halt;
     input [6:0] opcode;
     input [31:0] opA, opB;

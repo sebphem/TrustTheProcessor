@@ -35,7 +35,7 @@ C0
 
 I have also included two extra folders for debugging purposes.
 
-![Debugging_explanation](debug_manual_loop/mem_out_explanation.png)
+![Debugging_explanation](./debug_manual_loop/mem_out_explanation.png)
 
 As shown in the image above, the added functionality of these tests just show you the lower 32 bits of the output of either:
 
