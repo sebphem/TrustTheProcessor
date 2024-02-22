@@ -1,2 +1,6 @@
 *.vcd
 CPU
+colincode\mem_in.hex
+colincode\regs_in.hex
+colincode\mem_out.hex
+colincode\regs_out.hex
