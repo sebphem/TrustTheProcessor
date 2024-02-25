@@ -74,8 +74,7 @@ module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
 
     always @(*) begin
         halt = 1'b0; // default no halt
-        if (opcode == `OPCODE_COMPUTE) begin 
-             if (auxFunc == 7'b0000001) begin
+        if (opcode == `OPCODE_COMPUTE && auxFunc == 7'b0000001) begin 
             case (func)
                 3'b000: begin 
                         out = {sopA * sopB};
@@ -103,7 +102,7 @@ module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
                     out = 32'b0;
                 end
             endcase
-        end else begin
+        end else if (opcode == `OPCODE_COMPUTE || opcode == `OPCODE_ICOMPUTE) begin
             case(func)
                 3'b000: 
                     if (opcode == `OPCODE_ICOMPUTE)
@@ -138,7 +137,6 @@ module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
                     else
                         out = opA + opB; // default add
             endcase
-        end
         end
         else 
             out = opA + opB; // default add for all other instruction types
