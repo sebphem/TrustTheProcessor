@@ -61,7 +61,7 @@
 // out - out, halt
 module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
     output reg [31:0] out;
-    output reg [63:0] mulout;
+    reg [63:0] mulout;
     output reg halt;
     input [6:0] opcode;
     input [31:0] opA, opB;
@@ -74,7 +74,7 @@ module ArithmeticLogicUnit(opcode, opA, opB, func, auxFunc, out, halt);
 
     always @(*) begin
         halt = 1'b0; // default no halt
-        if (opcode == `OPCODE_COMPUTE || opcode == `OPCODE_ICOMPUTE) begin 
+        if (opcode == `OPCODE_COMPUTE) begin 
              if (auxFunc == 7'b0000001) begin
             case (func)
                 3'b000: begin 
@@ -162,25 +162,25 @@ module BranchUnit(opA, opB, funct3, opcode, out, halt);
 
   always @(*) begin
     halt = 1'b0;
-    if (opcode == `OPCODE_BRANCH || opcode == `OPCODE_JAL || opcode == `OPCODE_JALR)
-        begin
-            case(funct3)
-            3'b000: out = (opA == opB) ? `BR_TRUE : `BR_FALSE; // beq
-            3'b001: out = (opA != opB) ? `BR_TRUE : `BR_FALSE; // bne
-            3'b100: out = (sopA < sopB) ? `BR_TRUE : `BR_FALSE; // blt
-            3'b101: out = (sopA >= sopB) ? `BR_TRUE : `BR_FALSE; // bge
-            3'b110: out = (opA < opB) ? `BR_TRUE : `BR_FALSE; // bltu
-            3'b111: out = (opA >= opB) ? `BR_TRUE : `BR_FALSE; // bgeu
-            default: 
-                if (opcode == `OPCODE_BRANCH)
-                halt = 1'b1; // if branch opcode but not a valid br instruction, halt
-                else if (opcode == `OPCODE_JAL || opcode == `OPCODE_JALR)
-                out = `BR_TRUE; // if jal or jalr, always branch (jump
-                else
-                out = `BR_FALSE; // default
-            endcase
-        end
-    else
+    if (opcode == `OPCODE_JAL || opcode == `OPCODE_JALR) 
+        out = `BR_TRUE; // if jal or jalr, always branch (jump)
+        else if (opcode == `OPCODE_BRANCH)
+            begin
+                case(funct3)
+                3'b000: out = (opA == opB) ? `BR_TRUE : `BR_FALSE; // beq
+                3'b001: out = (opA != opB) ? `BR_TRUE : `BR_FALSE; // bne
+                3'b100: out = (sopA < sopB) ? `BR_TRUE : `BR_FALSE; // blt
+                3'b101: out = (sopA >= sopB) ? `BR_TRUE : `BR_FALSE; // bge
+                3'b110: out = (opA < opB) ? `BR_TRUE : `BR_FALSE; // bltu
+                3'b111: out = (opA >= opB) ? `BR_TRUE : `BR_FALSE; // bgeu
+                default: 
+                    if (opcode == `OPCODE_BRANCH)
+                    halt = 1'b1; // if branch opcode but not a valid br instruction, halt
+                    else
+                    out = `BR_FALSE; // default
+                endcase
+            end
+    else 
         out = `BR_FALSE; // default
   end
 endmodule // Branch Unit
