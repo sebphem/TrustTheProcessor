@@ -50,28 +50,22 @@ module IF_ID_data_reg(WEN, CLK, RST, NEW, stall,
             PC_Plus4_D <= PC_Plus4_F;
             // if not just reset, this program is not NEW
             NEW <= 1'b0;
-        end 
+        end
 endmodule
 
 module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus4_D, PC_Plus4_E,
                         RegAData_D, RegAData_E, RegBData_D, RegBData_E,
-                        RegAName_D, RegBName_D,
                         Rdst_D, Rdst_E,
-                        stall, nop,
-                        FF_MEM_in, FF_MEM_Rdst, FF_MEM_APPLICABLE,
-                        FF_EX_in, FF_EX_Rdst, FF_EX_APPLICABLE);
+                        stall, nop
+                        );
     input WEN, CLK, RST;
     input [31:0] InstWord_D, PC_D, PC_Plus4_D;
     output reg [31:0] InstWord_E, PC_E, PC_Plus4_E;
+
     input [31:0] RegAData_D, RegBData_D;
     output reg [31:0] RegAData_E, RegBData_E;
     input [4:0] Rdst_D;
-    input [4:0] RegAName_D, RegBName_D;
     output reg [4:0] Rdst_E;
-
-    input FF_MEM_APPLICABLE, FF_EX_APPLICABLE;
-    input [31:0] FF_MEM_in, FF_EX_in;
-    input [4:0] FF_MEM_Rdst, FF_EX_Rdst;
 
     input nop, stall;
 
@@ -107,26 +101,19 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             PC_E <= PC_D;
             PC_Plus4_E <= PC_Plus4_D;
             Rdst_E <= Rdst_D;
-            //added clause for full forwarding here
-            if (!FF_MEM_APPLICABLE) begin
-                RegAData_E <= (FF_MEM_Rdst == RegAName_D) ? FF_MEM_in : RegAData_D;
-                RegBData_E <= (FF_MEM_Rdst == RegBName_D) ? FF_MEM_in : RegBData_D;
-            end
-            if (!FF_EX_APPLICABLE) begin
-                RegAData_E <= (FF_EX_Rdst == RegAName_D) ? FF_EX_in : RegAData_D;
-                RegBData_E <= (FF_EX_Rdst == RegBName_D) ? FF_EX_in : RegBData_D;
-            end
+            RegAData_E <= RegAData_D;
+            RegBData_E <= RegBData_D;
         end
 endmodule
 
-module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D, 
+module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
                         MemWrEn_D, RegWrEn_D, LoadType_D, MemSize_D,
                         ALUsrcA_E, ALUsrcB_E, WBSel_E, ImmSel_E,
                         MemWrEn_E, RegWrEn_E, LoadType_E, MemSize_E,
                         halt_D, halt_E,
                         NEW_IN, NEW_OUT,
                         nop, stall);
-    input WEN, CLK, RST; 
+    input WEN, CLK, RST;
     input ALUsrcA_D, ALUsrcB_D;
     output reg ALUsrcA_E, ALUsrcB_E;
     input MemWrEn_D, RegWrEn_D;
@@ -156,7 +143,8 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
             halt_E <= 1'b0;
             // if just reset, this program is NEW
             NEW_OUT <= 1'b1;
-        end else if (stall) begin
+        end
+        else if (stall) begin
             // maintain the same signal but with "stalled" output
             ALUsrcA_E <= ALUsrcA_E;
             ALUsrcB_E <= ALUsrcB_E;
@@ -199,7 +187,8 @@ endmodule
 
 module EX_MEM_data_reg(WEN, CLK, RST, NEW, ALUresult_E, RegBData_E, Immediate_E, PC_Plus4_E, Rdst_E, InstWord_E,
                         ALUresult_M, RegBData_M, Immediate_M, PC_Plus4_M, Rdst_M, InstWord_M,
-                        nop);
+                        // nop
+                        );
     input WEN, CLK, RST;
     output reg NEW;
     input [31:0] ALUresult_E, RegBData_E, PC_Plus4_E, Immediate_E;
@@ -208,7 +197,6 @@ module EX_MEM_data_reg(WEN, CLK, RST, NEW, ALUresult_E, RegBData_E, Immediate_E,
     output reg [4:0] Rdst_M;
     input [31:0] InstWord_E;
     output reg [31:0] InstWord_M;
-    inout nop;
 
     always @ (negedge CLK or negedge RST)
         if (!RST) begin
@@ -221,17 +209,19 @@ module EX_MEM_data_reg(WEN, CLK, RST, NEW, ALUresult_E, RegBData_E, Immediate_E,
             Immediate_M <= 32'b0;
             // if just reset, this program is NEW
             NEW <= 1'b1;
-        end else if (nop) begin
-            // set value to nop
-            ALUresult_M <= 32'b0;
-            RegBData_M <= 32'b0;
-            PC_Plus4_M <= 32'b0;
-            Rdst_M <= 5'b0;
-            InstWord_M <= 32'h13;
-            Immediate_M <= 32'b0;
-            // if not just reset, this program is not NEW
-            NEW <= 1'b0;
-        end else if (!WEN) begin
+        end 
+        // else if (nop) begin
+        //     // set value to nop
+        //     ALUresult_M <= 32'b0;
+        //     RegBData_M <= 32'b0;
+        //     PC_Plus4_M <= 32'b0;
+        //     Rdst_M <= 5'b0;
+        //     InstWord_M <= 32'h13;
+        //     Immediate_M <= 32'b0;
+        //     // if not just reset, this program is not NEW
+        //     NEW <= 1'b0;
+        // end 
+        else if (!WEN) begin
             // write all in values to outs
             ALUresult_M <= ALUresult_E;
             RegBData_M <= RegBData_E;
@@ -246,7 +236,7 @@ endmodule
 
 module EX_MEM_ctrl_reg(WEN, CLK, RST, MemWrEn_E, RegWrEn_E, WBSel_E, LoadType_E, MemSize_E, 
                         MemWrEn_M, RegWrEn_M, WBSel_M, LoadType_M, MemSize_M,
-                        halt_E, halt_M, nop,
+                        halt_E, halt_M,
                         NEW_IN, NEW_OUT);
     input WEN, CLK, RST;
     input MemWrEn_E, RegWrEn_E;
@@ -259,7 +249,6 @@ module EX_MEM_ctrl_reg(WEN, CLK, RST, MemWrEn_E, RegWrEn_E, WBSel_E, LoadType_E,
     output reg halt_M;
     input NEW_IN;
     output reg NEW_OUT;
-    input nop;
 
     always @ (negedge CLK or negedge RST)
         if (!RST) begin
@@ -272,17 +261,19 @@ module EX_MEM_ctrl_reg(WEN, CLK, RST, MemWrEn_E, RegWrEn_E, WBSel_E, LoadType_E,
             halt_M <= 1'b0;
             // if just reset, this program is NEW
             NEW_OUT <= 1'b1;
-        end else if (nop) begin
-            // set value to nop
-            MemWrEn_M <= 1'b1;
-            RegWrEn_M <= 1'b1;
-            WBSel_M <= 2'b0;
-            LoadType_M <= 3'b0;
-            MemSize_M <= 2'b0;
-            halt_M <= 1'b0;
-            // if not just reset, this program is not NEW
-            NEW_OUT <= NEW_IN;
-        end else if (!WEN) begin
+        end 
+        // else if (nop) begin
+        //     // set value to nop
+        //     MemWrEn_M <= 1'b1;
+        //     RegWrEn_M <= 1'b1;
+        //     WBSel_M <= 2'b0;
+        //     LoadType_M <= 3'b0;
+        //     MemSize_M <= 2'b0;
+        //     halt_M <= 1'b0;
+        //     // if not just reset, this program is not NEW
+        //     NEW_OUT <= NEW_IN;
+        // end
+        else if (!WEN) begin
             // write all in values to outs
             MemWrEn_M <= MemWrEn_E;
             RegWrEn_M <= RegWrEn_E;

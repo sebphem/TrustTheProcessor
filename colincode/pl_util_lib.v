@@ -191,24 +191,22 @@ module StallUnit (
     opcode_EX,
     Rdst_EX,
     //outputs
-    ID_stall, IF_stall
+    IF_ID_stall
 );
     input [4:0] RegA_ID, RegB_ID;
     input [6:0] opcode_EX;
 
     input [4:0] Rdst_EX;
 
-    output reg ID_stall, IF_stall;
+    output reg IF_ID_stall;
     always@(*) begin
         if(opcode_EX == `OPCODE_LOAD)begin
             if(RegA_ID == Rdst_EX || RegB_ID == Rdst_EX) begin
-                ID_stall = 1'b1;
-                IF_stall = 1'b1;
+                IF_ID_stall = 1'b1;
             end
         end
         else begin
-                ID_stall = 1'b0;
-                IF_stall = 1'b0;
+                IF_ID_stall = 1'b0;
         end
     end
 endmodule
@@ -217,33 +215,54 @@ module ForwardingUnit(
     //input
     RegA_ID, RegB_ID,
     RegA_ID_cur, RegB_ID_cur,
-    opcode_EX, opcode_MEM,
+    opcode_ID, opcode_EX, opcode_MEM,
     Rdst_EX_Data, Rdst_MEM_Data,
     Rdst_EX_Name, Rdst_MEM_Name,
+    RegWREN_EX, RegWREN_MEM,
     //outputs
     RegA_ID_Data, RegB_ID_Data
 );
     input [4:0] RegA_ID, RegB_ID;
-    input [6:0] opcode_EX, opcode_MEM;
+    input [6:0] opcode_ID, opcode_EX, opcode_MEM;
 
     input [4:0] Rdst_EX_Name, Rdst_MEM_Name;
     input [31:0] Rdst_EX_Data, Rdst_MEM_Data;
     input [31:0] RegA_ID_cur, RegB_ID_cur;
-
+    input RegWREN_EX, RegWREN_MEM;
     output reg [31:0] RegA_ID_Data, RegB_ID_Data;
+    reg  mem_gatekeeper_outer, mem_gatekeeper_inner, ex_gatekeeper_outer, ex_gatekeeper_inner;
     always@(*)begin
         //mem-ex and mem-mem forwarding
         //are only concerned about loads
-        if(opcode_MEM == `OPCODE_LOAD) begin
-            RegA_ID_Data = (Rdst_MEM_Name == RegA_ID) ? Rdst_MEM_Data : RegA_ID_cur;
-            RegB_ID_Data = (Rdst_MEM_Name == RegB_ID) ? Rdst_MEM_Data : RegB_ID_cur;
-        end
+        mem_gatekeeper_outer = ((opcode_MEM == `OPCODE_LOAD ||  opcode_MEM == `OPCODE_COMPUTE ||  opcode_MEM == `OPCODE_ICOMPUTE ||  opcode_MEM == `OPCODE_JAL ||  opcode_MEM == `OPCODE_JALR) && RegWREN_MEM == 1'b0);
+        mem_gatekeeper_inner = (Rdst_MEM_Name == RegB_ID && Rdst_EX_Name != RegB_ID && RegB_ID != 5'b0);
         //ex-ex forwarding
         //works with everything but loads, we don't need to forward data in stores
-        if(opcode_EX != `OPCODE_LOAD && opcode_EX != `OPCODE_STORE) begin
-            RegA_ID_Data = (Rdst_EX_Name == RegA_ID) ? Rdst_EX_Data : RegA_ID_cur;
-            RegB_ID_Data = (Rdst_EX_Name == RegB_ID) ? Rdst_EX_Data : RegB_ID_cur;
-        end
+        ex_gatekeeper_outer = (opcode_EX != `OPCODE_LOAD && opcode_EX != `OPCODE_STORE && opcode_EX != `OPCODE_BRANCH && opcode_EX != `OPCODE_JAL && opcode_EX != `OPCODE_JALR && RegWREN_EX == 1'b0);
+        ex_gatekeeper_inner = (Rdst_EX_Name == RegB_ID && RegB_ID != 5'b0);
+
+        // if(opcode_ID == `OPCODE_LOAD || opcode_ID == `OPCODE_STORE) begin
+            // if(opcode_EX != `OPCODE_LOAD && opcode_EX != `OPCODE_STORE && opcode_EX != `OPCODE_BRANCH && opcode_EX != `OPCODE_JAL && opcode_EX != `OPCODE_JALR && RegWREN_EX == 1'b0) begin
+            //     RegB_ID_Data = (Rdst_EX_Name == RegA_ID && RegA_ID != 5'b0) ? Rdst_EX_Data : RegB_ID_cur;
+            //     RegA_ID_Data = (Rdst_EX_Name == RegB_ID && RegB_ID != 5'b0) ? Rdst_EX_Data : RegA_ID_cur;
+            // end
+            // if((opcode_MEM == `OPCODE_LOAD ||  opcode_MEM == `OPCODE_COMPUTE ||  opcode_MEM == `OPCODE_ICOMPUTE ||  opcode_MEM == `OPCODE_JAL ||  opcode_MEM == `OPCODE_JALR) && RegWREN_MEM == 1'b0) begin
+            //     RegB_ID_Data = (Rdst_MEM_Name == RegA_ID && Rdst_EX_Name != RegA_ID && RegA_ID != 5'b0) ? Rdst_MEM_Data : RegB_ID_cur;
+            //     RegA_ID_Data = mem_gatekeeper_inner ? Rdst_MEM_Data : RegA_ID_cur;
+            // end
+
+        // end
+        // else begin
+            if(opcode_EX != `OPCODE_LOAD && opcode_EX != `OPCODE_STORE && opcode_EX != `OPCODE_BRANCH && opcode_EX != `OPCODE_JAL && opcode_EX != `OPCODE_JALR && RegWREN_EX == 1'b0) begin
+                RegA_ID_Data = (Rdst_EX_Name == RegA_ID && RegA_ID != 5'b0) ? Rdst_EX_Data : RegA_ID_cur;
+                RegB_ID_Data = (Rdst_EX_Name == RegB_ID && RegB_ID != 5'b0) ? Rdst_EX_Data : RegB_ID_cur;
+            end
+
+            if((opcode_MEM == `OPCODE_LOAD ||  opcode_MEM == `OPCODE_COMPUTE ||  opcode_MEM == `OPCODE_ICOMPUTE ||  opcode_MEM == `OPCODE_JAL ||  opcode_MEM == `OPCODE_JALR) && RegWREN_MEM == 1'b0) begin
+                RegA_ID_Data = (Rdst_MEM_Name == RegA_ID && Rdst_EX_Name != RegA_ID && RegA_ID != 5'b0) ? Rdst_MEM_Data : RegA_ID_Data;
+                RegB_ID_Data = (Rdst_MEM_Name == RegB_ID && Rdst_EX_Name != RegB_ID && RegB_ID != 5'b0) ? Rdst_MEM_Data : RegB_ID_Data;
+            end
+        // end
     end
 endmodule
 
@@ -251,7 +270,7 @@ endmodule
 // ControlUnit
 // in - opcode, funct3
 // out - PCSel, ImmSel, RWrEn, ALUsrcA, ALUsrcB, MemWrEn, WBSel, halt
-module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel, 
+module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                     RWrEn, ALUsrcA, ALUsrcB, MemWrEn, LoadType, MemSize, halt);
     input [6:0] opcode;
     input [2:0] funct3;
@@ -261,7 +280,7 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
     output reg halt;
 
     always @(*) begin
-        halt = 1'b0; 
+        halt = 1'b0;
         case(opcode)
             `OPCODE_COMPUTE: // R-type instructions
                 begin
@@ -372,7 +391,10 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                     WBSel = `WB_ALU; // write ALU to register
                 end
             default:
+                begin
+                RWrEn = 1'b1;
                 halt = 1'b1; // if not a valid opcode, halt signal
+                end
         endcase
     end
 endmodule

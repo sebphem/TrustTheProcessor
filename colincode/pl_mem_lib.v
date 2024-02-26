@@ -5,7 +5,7 @@ module InstMem(Addr, Size, DataOut, CLK);
    input [31:0] Addr;
    input [1:0] 	Size;
    output [31:0] DataOut;
-   reg [31:0] DataOut;   
+   reg [31:0] DataOut;
    input 	CLK;
    reg [7:0] 	Mem[0:1024];
    wire [31:0] 	AddrW;
@@ -13,7 +13,7 @@ module InstMem(Addr, Size, DataOut, CLK);
    // Addresses are word aligned
    assign AddrW = Addr & 32'hfffffffc;
 
-   // Little endian 
+   // Little endian
    always @ *
      DataOut = {Mem[AddrW+3], Mem[AddrW+2], 
 		Mem[AddrW+1], Mem[AddrW]};
@@ -73,7 +73,7 @@ module RegFile(AddrA, DataOutA,
    always @ * begin
       // Remember that x0 == 0
       DataOutA = (AddrA == 0) ? 32'h00000000 : Mem[AddrA];
-      DataOutB = (AddrB == 0) ? 32'h00000000 : Mem[AddrB]; 
+      DataOutB = (AddrB == 0) ? 32'h00000000 : Mem[AddrB];
    end
 
    always @ (negedge CLK) begin
