@@ -55,9 +55,16 @@ endmodule
 
 module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus4_D, PC_Plus4_E, 
                         RegAData_D, RegAData_E, RegBData_D, RegBData_E, 
-                        Rdst_D, Rdst_E, 
+                        
+                        Immediate_D, Immediate_E,
+                        
+                        Rdst_D, Rdst_E,
                         stall, nop);
     input WEN, CLK, RST;
+
+    input [31:0] Immediate_D;
+    output reg [31:0] Immediate_E;
+
     input [31:0] InstWord_D, PC_D, PC_Plus4_D;
     output reg [31:0] InstWord_E, PC_E, PC_Plus4_E;
     input [31:0] RegAData_D, RegBData_D;
@@ -76,6 +83,9 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             RegAData_E <= 32'b0;
             RegBData_E <= 32'b0;
             Rdst_E <= 5'b0;
+
+            Immediate_E <= 32'b0;
+
         end else if (stall) begin
             // maintain the same signal but with "stalled" output
             InstWord_E <= InstWord_E;
@@ -84,6 +94,9 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             RegAData_E <= RegAData_E;
             RegBData_E <= RegBData_E;
             Rdst_E <= Rdst_E;
+
+            Immediate_E <= Immediate_E;
+
         end else if (nop) begin
             // set value to nop
             InstWord_E <= 32'h13;
@@ -92,6 +105,9 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             RegAData_E <= 32'b0;
             RegBData_E <= 32'b0;
             Rdst_E <= 5'b0; 
+
+            Immediate_E <= 32'b0;
+
         end
         else if (!WEN) begin
             // write all in values to outs
@@ -101,6 +117,9 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             RegAData_E <= RegAData_D;
             RegBData_E <= RegBData_D;
             Rdst_E <= Rdst_D;
+
+            Immediate_E <= Immediate_D;
+            
         end
 endmodule
 

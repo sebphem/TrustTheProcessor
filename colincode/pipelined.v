@@ -82,6 +82,7 @@ module PipelinedCPU(halt, CLK, rst);
     wire [31:0] RegAData_out_D,     RegAData_in_E;
     wire [31:0] RegBData_out_D,     RegBData_in_E;
     wire [4:0] Rdst_out_D,          Rdst_in_E;
+    wire [31:0] Immediate_out_D,    Immediate_in_E;
 
     // ID --> EX Ctrl
     wire ALUsrcA_out_D,             ALUsrcA_in_E;
@@ -181,7 +182,8 @@ module PipelinedCPU(halt, CLK, rst);
                         .MemWrEn(MemWrEn_out_D), .RegWrEn(RegWrEn_out_D), .LoadType(LoadType_out_D), .MemSize(MemSize_out_D),    
                         .RegA(RegA_out_D), .RegB(RegB_out_D),
                         .halt_ID_out(halt_ID_out),
-                        .isNew(IF_ID_NEW));
+                        .isNew(IF_ID_NEW),
+                        .immediate(Immediate_out_D));
 
     // hazard detection
     HazardUnit HU(.RegA_ID(RegA_out_D), .RegB_ID(RegB_out_D), .opcode_ID(InstWord_in_D[6:0]), 
@@ -195,7 +197,10 @@ module PipelinedCPU(halt, CLK, rst);
                             .PC_D(PC_out_D),                .PC_E(PC_in_E), 
                             .PC_Plus4_D(PC_Plus4_out_D),    .PC_Plus4_E(PC_Plus4_in_E), 
                             .RegAData_D(RegAData_out_D),    .RegAData_E(RegAData_in_E), 
-                            .RegBData_D(RegBData_out_D),    .RegBData_E(RegBData_in_E), 
+                            .RegBData_D(RegBData_out_D),    .RegBData_E(RegBData_in_E),
+
+                            .Immediate_D(Immediate_out_D),  .Immediate_E(Immediate_in_E),
+
                             .Rdst_D(Rdst_out_D),            .Rdst_E(Rdst_in_E),
                             .nop((PCsel_EX_IF || hazard_EX)), 
                             .stall(hazard_MEM_only));
@@ -220,15 +225,15 @@ module PipelinedCPU(halt, CLK, rst);
                     .RegAData(RegAData_in_E), .RegBData(RegBData_in_E), .Rdst(Rdst_in_E),
                     .ALUsrcA(ALUsrcA_in_E), .ALUsrcB(ALUsrcB_in_E), .WBSel(WBSel_in_E), 
                     .ImmSel(ImmSel_in_E), .MemWrEn(MemWrEn_in_E), .RegWrEn(RegWrEn_in_E),
-                    .LoadType(LoadType_in_E), .MemSize(MemSize_in_E),
+                    .LoadType(LoadType_in_E), .MemSize(MemSize_in_E), .immediate_in(Immediate_in_E),
                     .isNew(ID_EX_NEW),
                     // outputs
                     .ALUout(ALUresult_out_E), .RegBData_out(RegBData_out_E), .PC_Plus4_out(PC_Plus4_out_E), 
-                    .Rdst_out(Rdst_out_E), .immediate(Immediate_out_E),  .MemWrEn_out(MemWrEn_out_E), 
+                    .Rdst_out(Rdst_out_E), .MemWrEn_out(MemWrEn_out_E), 
                     .RegWrEn_out(RegWrEn_out_E), .WBSel_out(WBSel_out_E), .LoadType_out(LoadType_out_E), 
                     .MemSize_out(MemSize_out_E), 
                     .PCsel(PCsel_EX_IF), .targetAddr(targetAddr_EX_IF), 
-                    .InstWord_out(InstWord_out_E),
+                    .InstWord_out(InstWord_out_E), .immediate_out(Immediate_out_E),
                     // halt signal
                     .halt_EX_in(halt_EX_in), .halt_EX_out(halt_EX_out));
 
@@ -326,7 +331,7 @@ module InstructionDecode(InstWord_in, CLK, PC_in, PC_Plus4_in,
                         RegWrData_WB, RegWrEn_WB, Rdst_WB,
                         RegAData, RegBData, Rdst, InstWord_out, PC_out, PC_Plus4_out,
                         ALUsrcA, ALUsrcB, WBSel, ImmSel, MemWrEn, RegWrEn, LoadType, MemSize,
-                        RegA, RegB,
+                        RegA, RegB, immediate,
                         halt_ID_out,
                         isNew);
     input [31:0] InstWord_in, PC_in, PC_Plus4_in;
@@ -337,7 +342,7 @@ module InstructionDecode(InstWord_in, CLK, PC_in, PC_Plus4_in,
     input isNew;
     
     // out data
-    output [31:0] RegAData, RegBData;
+    output [31:0] RegAData, RegBData, immediate;
     output [4:0] Rdst;
     output [31:0] InstWord_out, PC_out, PC_Plus4_out;
     output [4:0] RegA, RegB;
@@ -378,7 +383,8 @@ module InstructionDecode(InstWord_in, CLK, PC_in, PC_Plus4_in,
                     .ALUsrcB(ALUsrcB), .MemWrEn(MemWrEn), .WBSel(WBSel), 
                     .LoadType(LoadType), .MemSize(MemSize), .halt(controlHalt));
 
-    
+    // immediate generation
+    ImmediateGenerator IG(.InstWord(InstWord_in), .ImmSel(ImmSel), .immediate(immediate));
     
     // assign halt based on control output & PC alignment if jump/br
     assign halt_ID_out = (controlHalt && !(isNew));
@@ -395,16 +401,16 @@ endmodule
 module Execute(     // inputs
                     InstWord, PC, PC_Plus4, RegAData, RegBData, Rdst,
                     ALUsrcA, ALUsrcB, WBSel, ImmSel, MemWrEn, RegWrEn,
-                    LoadType, MemSize,
+                    LoadType, MemSize, immediate_in,
                     halt_EX_in,
                     isNew,
                     // outputs
-                    ALUout, RegBData_out, PC_Plus4_out, Rdst_out, immediate,  
+                    ALUout, RegBData_out, PC_Plus4_out, Rdst_out, 
                     MemWrEn_out, RegWrEn_out, WBSel_out, LoadType_out, MemSize_out,
-                    PCsel, targetAddr, InstWord_out, 
+                    PCsel, targetAddr, InstWord_out, immediate_out,
                     halt_EX_out);
     // declare inputs
-    input [31:0] InstWord, PC, PC_Plus4, RegAData, RegBData;
+    input [31:0] InstWord, PC, PC_Plus4, RegAData, RegBData, immediate_in;
     input ALUsrcA, ALUsrcB, MemWrEn, RegWrEn;
     input [1:0] WBSel, MemSize;
     input [2:0] ImmSel, LoadType;
@@ -413,7 +419,7 @@ module Execute(     // inputs
 
     // declare outputs
     // data going to MEM
-    output [31:0] ALUout, RegBData_out, PC_Plus4_out, immediate;
+    output [31:0] ALUout, RegBData_out, PC_Plus4_out, immediate_out;
     output [4:0] Rdst_out;
     output [31:0] InstWord_out;
     // control signals going to MEM
@@ -435,11 +441,8 @@ module Execute(     // inputs
     assign funct3 = InstWord[14:12];
     assign funct7 = InstWord[31:25];
 
-    // immediate generation
-    ImmediateGenerator IG(.InstWord(InstWord), .ImmSel(ImmSel), .immediate(immediate));
-
     // target address generation
-    assign targetAddr = (opcode == `OPCODE_JALR) ? RegAData + immediate : PC + immediate;
+    assign targetAddr = (opcode == `OPCODE_JALR) ? RegAData + immediate_in : PC + immediate_in;
 
     // detect if we branch or not
     wire branchHalt, doBranch;
@@ -456,7 +459,7 @@ module Execute(     // inputs
     // muxes determine ops for ALU
     wire [31:0] ALUopA, ALUopB;
     assign ALUopA = (ALUsrcA == `ALU_A_REG) ? RegAData : PC;
-    assign ALUopB = (ALUsrcB == `ALU_B_REG) ? RegBData : immediate;
+    assign ALUopB = (ALUsrcB == `ALU_B_REG) ? RegBData : immediate_in;
 
     // execute ALU
     wire ALUhalt;
@@ -472,6 +475,7 @@ module Execute(     // inputs
     assign PC_Plus4_out = PC_Plus4;
     assign Rdst_out = Rdst;
     assign InstWord_out = InstWord;
+    assign immediate_out = immediate_in;
     // ctrl signals
     assign MemWrEn_out = MemWrEn;
     assign RegWrEn_out = RegWrEn;
@@ -559,4 +563,3 @@ module WriteBack(ALUresult, MemReadData, Immediate,
         endcase
     end
 endmodule
-
