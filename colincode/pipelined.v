@@ -467,7 +467,7 @@ module Execute(     // inputs
     ImmediateGenerator IG(.InstWord(InstWord), .ImmSel(ImmSel), .immediate(immediate));
 
     // target address generation
-    assign targetAddr = PC + immediate;
+    assign targetAddr = (opcode == `OPCODE_JALR) ? RegAData + immediate : PC + immediate;
 
     // detect if we branch or not
     wire branchHalt, doBranch;
