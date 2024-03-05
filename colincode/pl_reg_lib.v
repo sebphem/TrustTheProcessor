@@ -136,8 +136,8 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
             ALUsrcB_E <= 1'b0;
             WBSel_E <= 2'b0;
             ImmSel_E <= 3'b0;
-            MemWrEn_E <= 1'b0;
-            RegWrEn_E <= 1'b0;
+            MemWrEn_E <= 1'b1;
+            RegWrEn_E <= 1'b1;
             LoadType_E <= 3'b0;
             MemSize_E <= 2'b0;
             halt_E <= 1'b0;
@@ -253,8 +253,8 @@ module EX_MEM_ctrl_reg(WEN, CLK, RST, MemWrEn_E, RegWrEn_E, WBSel_E, LoadType_E,
     always @ (negedge CLK or negedge RST)
         if (!RST) begin
             // set all vals to 0
-            MemWrEn_M <= 1'b0;
-            RegWrEn_M <= 1'b0;
+            MemWrEn_M <= 1'b1;
+            RegWrEn_M <= 1'b1;
             WBSel_M <= 2'b0;
             LoadType_M <= 3'b0;
             MemSize_M <= 2'b0;
@@ -320,7 +320,7 @@ module MEM_WB_ctrl_reg(WEN, CLK, RST, RegWrEn_M,
     always @ (negedge CLK or negedge RST)
         if (!RST) begin
             // set all vals to 0
-            RegWrEn_W <= 1'b0;
+            RegWrEn_W <= 1'b1;
             halt_W <= 1'b0;
             // if just reset, this program is NEW
             NEW_OUT <= 1'b1;
