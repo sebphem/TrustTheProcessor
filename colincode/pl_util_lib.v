@@ -229,6 +229,7 @@ module ForwardingUnit(
     input RegWREN_EX, RegWREN_MEM;
     output reg [31:0] RegA_ID_Data, RegB_ID_Data;
     reg  mem_gatekeeper_outer, mem_gatekeeper_inner, ex_gatekeeper_outer, ex_gatekeeper_inner;
+    
     always@(*)begin
         //mem-ex and mem-mem forwarding
         //are only concerned about loads
@@ -254,11 +255,16 @@ module ForwardingUnit(
             if(opcode_EX != `OPCODE_LOAD && opcode_EX != `OPCODE_STORE && opcode_EX != `OPCODE_BRANCH && opcode_EX != `OPCODE_JAL && opcode_EX != `OPCODE_JALR && RegWREN_EX == 1'b0) begin
                 RegA_ID_Data = (Rdst_EX_Name == RegA_ID && RegA_ID != 5'b0) ? Rdst_EX_Data : RegA_ID_cur;
                 RegB_ID_Data = (Rdst_EX_Name == RegB_ID && RegB_ID != 5'b0) ? Rdst_EX_Data : RegB_ID_cur;
+                if((opcode_MEM == `OPCODE_LOAD ||  opcode_MEM == `OPCODE_COMPUTE ||  opcode_MEM == `OPCODE_ICOMPUTE ||  opcode_MEM == `OPCODE_JAL ||  opcode_MEM == `OPCODE_JALR) && RegWREN_MEM == 1'b0) begin
+                    RegA_ID_Data = (Rdst_MEM_Name == RegA_ID && Rdst_EX_Name != RegA_ID && RegA_ID != 5'b0) ? Rdst_MEM_Data : RegA_ID_Data;
+                    RegB_ID_Data = (Rdst_MEM_Name == RegB_ID && Rdst_EX_Name != RegB_ID && RegB_ID != 5'b0) ? Rdst_MEM_Data : RegB_ID_Data;
+                end
             end
-
-            if((opcode_MEM == `OPCODE_LOAD ||  opcode_MEM == `OPCODE_COMPUTE ||  opcode_MEM == `OPCODE_ICOMPUTE ||  opcode_MEM == `OPCODE_JAL ||  opcode_MEM == `OPCODE_JALR) && RegWREN_MEM == 1'b0) begin
-                RegA_ID_Data = (Rdst_MEM_Name == RegA_ID && Rdst_EX_Name != RegA_ID && RegA_ID != 5'b0) ? Rdst_MEM_Data : RegA_ID_Data;
-                RegB_ID_Data = (Rdst_MEM_Name == RegB_ID && Rdst_EX_Name != RegB_ID && RegB_ID != 5'b0) ? Rdst_MEM_Data : RegB_ID_Data;
+            else begin
+                if((opcode_MEM == `OPCODE_LOAD ||  opcode_MEM == `OPCODE_COMPUTE ||  opcode_MEM == `OPCODE_ICOMPUTE ||  opcode_MEM == `OPCODE_JAL ||  opcode_MEM == `OPCODE_JALR) && RegWREN_MEM == 1'b0) begin
+                    RegA_ID_Data = (Rdst_MEM_Name == RegA_ID && Rdst_EX_Name != RegA_ID && RegA_ID != 5'b0) ? Rdst_MEM_Data : RegA_ID_cur;
+                    RegB_ID_Data = (Rdst_MEM_Name == RegB_ID && Rdst_EX_Name != RegB_ID && RegB_ID != 5'b0) ? Rdst_MEM_Data : RegB_ID_cur;
+                end
             end
         // end
     end
