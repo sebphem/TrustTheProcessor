@@ -53,19 +53,25 @@ module IF_ID_data_reg(WEN, CLK, RST, NEW, stall,
         end
 endmodule
 
-module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus4_D, PC_Plus4_E,
-                        RegAData_D, RegAData_E, RegBData_D, RegBData_E,
+module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus4_D, PC_Plus4_E, 
+                        RegAData_D, RegAData_E, RegBData_D, RegBData_E, 
+                        targetAddr_D, targetAddr_E,
+                        Immediate_D, Immediate_E,
+                        
                         Rdst_D, Rdst_E,
                         stall, nop
                         );
     input WEN, CLK, RST;
     input [31:0] InstWord_D, PC_D, PC_Plus4_D;
     output reg [31:0] InstWord_E, PC_E, PC_Plus4_E;
-
+    input [31:0] Immediate_D;
+    output reg [31:0] Immediate_E;
     input [31:0] RegAData_D, RegBData_D;
     output reg [31:0] RegAData_E, RegBData_E;
     input [4:0] Rdst_D;
     output reg [4:0] Rdst_E;
+    input [31:0] targetAddr_D;
+    output reg [31:0] targetAddr_E;
 
     input nop, stall;
 
@@ -78,6 +84,9 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             RegAData_E <= 32'b0;
             RegBData_E <= 32'b0;
             Rdst_E <= 5'b0;
+            targetAddr_E <= 32'b0;
+            Immediate_E <= 32'b0;
+
         end else if (stall) begin
             // maintain the same signal but with "stalled" output
             InstWord_E <= InstWord_E;
@@ -86,6 +95,9 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             RegAData_E <= RegAData_E;
             RegBData_E <= RegBData_E;
             Rdst_E <= Rdst_E;
+            targetAddr_E <= targetAddr_D;
+            Immediate_E <= Immediate_E;
+
         end else if (nop) begin
             // set value to nop
             InstWord_E <= 32'h13;
@@ -93,7 +105,10 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             PC_Plus4_E <= PC_Plus4_D;
             RegAData_E <= 32'b0;
             RegBData_E <= 32'b0;
-            Rdst_E <= 5'b0;
+            Rdst_E <= 5'b0; 
+            targetAddr_E <= 32'b0;
+            Immediate_E <= 32'b0;
+
         end
         else if (!WEN) begin
             // write all in values to outs
@@ -103,6 +118,10 @@ module ID_EX_data_reg(WEN, CLK, RST, InstWord_D, InstWord_E, PC_D, PC_E, PC_Plus
             Rdst_E <= Rdst_D;
             RegAData_E <= RegAData_D;
             RegBData_E <= RegBData_D;
+            Rdst_E <= Rdst_D;
+            targetAddr_E <= targetAddr_D;
+            Immediate_E <= Immediate_D;
+            
         end
 endmodule
 
@@ -110,7 +129,7 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
                         MemWrEn_D, RegWrEn_D, LoadType_D, MemSize_D,
                         ALUsrcA_E, ALUsrcB_E, WBSel_E, ImmSel_E,
                         MemWrEn_E, RegWrEn_E, LoadType_E, MemSize_E,
-                        halt_D, halt_E,
+                        halt_D, halt_E, didBranch_D, didBranch_E,
                         NEW_IN, NEW_OUT,
                         nop, stall);
     input WEN, CLK, RST;
@@ -126,6 +145,8 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
     output reg halt_E;
     input NEW_IN;
     output reg NEW_OUT;
+    input didBranch_D;
+    output reg didBranch_E;
 
     input nop, stall;
 
@@ -141,6 +162,7 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
             LoadType_E <= 3'b0;
             MemSize_E <= 2'b0;
             halt_E <= 1'b0;
+            didBranch_E <= 1'b0;
             // if just reset, this program is NEW
             NEW_OUT <= 1'b1;
         end
@@ -155,6 +177,7 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
             LoadType_E <= LoadType_E;
             MemSize_E <= MemSize_E;
             halt_E <= halt_E;
+            didBranch_E <= didBranch_E;
             NEW_OUT <= NEW_IN;
         end else if (nop) begin
             // set value to nop
@@ -166,6 +189,7 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
             RegWrEn_E <= 1'b1;
             LoadType_E <= LoadType_D;
             MemSize_E <= MemSize_D;
+            didBranch_E <= 1'b0;
             halt_E <= 1'b0;
             // if not just reset, this program is not NEW
             NEW_OUT <= NEW_IN;
@@ -179,7 +203,8 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
             RegWrEn_E <= RegWrEn_D;
             LoadType_E <= LoadType_D;
             MemSize_E <= MemSize_D;
-            halt_E <= halt_D;
+            halt_E <= halt_D;;
+            didBranch_E <= didBranch_D;
             // if not just reset, this program is not NEW
             NEW_OUT <= NEW_IN;
         end

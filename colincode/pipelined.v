@@ -32,8 +32,10 @@
 `define SI_IMM 3'b110
 
 // branch Y/N
-`define BR_FALSE 1'b0
-`define BR_TRUE 1'b1
+`define BR_FALSE 2'b10
+`define BR_TRUE 2'b11
+`define BR_NOTABRANCH 2'b00
+
 
 // writeback select codes
 `define WB_ALU 2'b00
@@ -87,7 +89,8 @@ module PipelinedCPU(halt, CLK, rst);
     wire [31:0] RegAData_out_D,     RegAData_in_E;
     wire [31:0] RegBData_out_D,     RegBData_in_E;
     wire [4:0] Rdst_out_D,          Rdst_in_E;
-
+    wire [31:0] Immediate_out_D,    Immediate_in_E;
+    wire [31:0] targetAddr_in_E;
     // ID --> EX Ctrl
     wire ALUsrcA_out_D,             ALUsrcA_in_E;
     wire ALUsrcB_out_D,             ALUsrcB_in_E;
@@ -97,14 +100,19 @@ module PipelinedCPU(halt, CLK, rst);
     wire RegWrEn_out_D,             RegWrEn_in_E;
     wire [2:0] LoadType_out_D,      LoadType_in_E;
     wire [1:0] MemSize_out_D,       MemSize_in_E;
-
+    wire didBranch_out_D,           didBranch_in_E;
     // ID --> hazard wires
     wire [4:0] RegA_out_ID, RegB_out_ID;
+    
+    // ID --> IF for branch/jump
+    wire PCSel_ID_IF, PCSel_EX_IF;
+    wire [31:0] targetAddr_ID_IF, targetAddr_EX_IF;
 
-    // EX --> IF for branch/jump
-    wire PCsel_EX_IF;
-    wire [31:0] targetAddr_EX_IF;
-
+    // EX --> ID for branch/jump
+    wire [1:0] taken_EX_ID;
+    
+    wire ID_EX_nop, IF_ID_nop;
+    
     // EX --> MEM data
     wire [31:0] ALUresult_out_E,    ALUresult_in_M;
     wire [31:0] RegBData_out_E,     RegBData_in_M;
@@ -112,7 +120,7 @@ module PipelinedCPU(halt, CLK, rst);
     wire [31:0] PC_Plus4_out_E,     PC_Plus4_in_M;
     wire [4:0] Rdst_out_E,          Rdst_in_M;
     wire [31:0] InstWord_out_E,     InstWord_in_M;
-
+  
     // EX --> MEM ctrl
     wire MemWrEn_out_E,             MemWrEn_in_M;
     wire RegWrEn_out_E,             RegWrEn_in_M;
@@ -167,7 +175,7 @@ module PipelinedCPU(halt, CLK, rst);
 
     InstructionFetch IF(.CLK(CLK), .RST(rst),
                         .stall(IF_ID_stall_out),
-                        .PCSel(PCsel_EX_IF), .targetAddr(targetAddr_EX_IF),
+                        .PCSel_ID(PCSel_ID_IF & (!ID_EX_nop)), .PCSel_EX(PCSel_EX_IF), .targetAddr_EX(targetAddr_EX_IF), .targetAddr_ID(targetAddr_ID_IF),
                         .InstWord(InstWord_out_F), .PC(PC_out_F), .PC_Plus4(PC_Plus4_out_F));
 
     // transfer to ID
@@ -176,7 +184,7 @@ module PipelinedCPU(halt, CLK, rst);
                             .PC_F(PC_out_F),                .PC_D(PC_in_D),
                             .PC_Plus4_F(PC_Plus4_out_F),    .PC_Plus4_D(PC_Plus4_in_D),
                             .NEW(IF_ID_NEW),
-                            .nop(PCsel_EX_IF),
+                            .nop(IF_ID_nop),
                             //TODO Fix this
                             .stall(IF_ID_stall_out));
 
@@ -191,7 +199,9 @@ module PipelinedCPU(halt, CLK, rst);
                         //reg names
                         .RegA(RegA_out_ID), .RegB(RegB_out_ID),
                         .halt_ID_out(halt_ID_out),
-                        .isNew(IF_ID_NEW));
+                        .targetAddr(targetAddr_ID_IF), .PCSel(PCSel_ID_IF), .taken((IF_ID_NEW) ? 2'b00 : taken_EX_ID),
+                        .isNew(IF_ID_NEW),
+                        .immediate(Immediate_out_D), .doBranch(didBranch_out_D));
 
     StallUnit StallDeterminer(
         //input
@@ -225,8 +235,11 @@ module PipelinedCPU(halt, CLK, rst);
                             .PC_Plus4_D(PC_Plus4_out_D),    .PC_Plus4_E(PC_Plus4_in_E),
                             .RegAData_D(RegAData_out_D),    .RegAData_E(RegAData_in_E),
                             .RegBData_D(RegBData_out_D),    .RegBData_E(RegBData_in_E),
+                            .targetAddr_D(targetAddr_ID_IF),.targetAddr_E(targetAddr_in_E),
+                            .Immediate_D(Immediate_out_D),  .Immediate_E(Immediate_in_E),
+
                             .Rdst_D(Rdst_out_D),            .Rdst_E(Rdst_in_E),
-                            .nop((PCsel_EX_IF || IF_ID_stall_out)),
+                            .nop((ID_EX_nop || IF_ID_stall_out)),
                             .stall(1'b0));
 
     ID_EX_ctrl_reg ID_EX_ctrl(.WEN(1'b0), .CLK(CLK), .RST(rst),
@@ -239,8 +252,9 @@ module PipelinedCPU(halt, CLK, rst);
                             .LoadType_D(LoadType_out_D),    .LoadType_E(LoadType_in_E),
                             .MemSize_D(MemSize_out_D),      .MemSize_E(MemSize_in_E),
                             .halt_D(halt_ID_out),           .halt_E(halt_EX_in),
+                            .didBranch_D(didBranch_out_D),  .didBranch_E(didBranch_in_E),
                             .NEW_IN(IF_ID_NEW),             .NEW_OUT(ID_EX_NEW),
-                            .nop((PCsel_EX_IF || IF_ID_stall_out)),
+                            .nop((ID_EX_nop || IF_ID_stall_out)),
                             .stall(1'b0));
 
     // stage 3 - EX
@@ -249,17 +263,18 @@ module PipelinedCPU(halt, CLK, rst);
                     .RegAData(RegAData_in_E), .RegBData(RegBData_in_E), .Rdst(Rdst_in_E),
                     .ALUsrcA(ALUsrcA_in_E), .ALUsrcB(ALUsrcB_in_E), .WBSel(WBSel_in_E),
                     .ImmSel(ImmSel_in_E), .MemWrEn(MemWrEn_in_E), .RegWrEn(RegWrEn_in_E),
-                    .LoadType(LoadType_in_E), .MemSize(MemSize_in_E),
-                    .isNew(ID_EX_NEW),
+                    .LoadType(LoadType_in_E), .MemSize(MemSize_in_E), .immediate_in(Immediate_in_E),
+                    .isNew(ID_EX_NEW), .didBranch(didBranch_in_E), .targetAddr_in(targetAddr_in_E),
                     // outputs
                     .ALUout(ALUresult_out_E), .RegBData_out(RegBData_out_E), .PC_Plus4_out(PC_Plus4_out_E),
-                    .Rdst_out(Rdst_out_E), .immediate(Immediate_out_E),
+                    .Rdst_out(Rdst_out_E), .immediate_out(Immediate_out_E),
                     //NOT ALWATS APPLICABLE, ONLY FOR CERTAIN CASES OF FULL FORWARDING
                     .Rdst_Data_out(Rdst_Data_out_E),
                     .MemWrEn_out(MemWrEn_out_E),
                     .RegWrEn_out(RegWrEn_out_E), .WBSel_out(WBSel_out_E), .LoadType_out(LoadType_out_E),
                     .MemSize_out(MemSize_out_E),
-                    .PCsel(PCsel_EX_IF), .targetAddr(targetAddr_EX_IF),
+                    .take(taken_EX_ID), .targetAddr_out(targetAddr_EX_IF), .PCSel(PCSel_EX_IF),
+                    .EX_nop(ID_EX_nop), .ID_nop(IF_ID_nop),
                     .InstWord_out(InstWord_out_E),
                     // halt signal
                     .halt_EX_in(halt_EX_in), .halt_EX_out(halt_EX_out));
@@ -320,26 +335,26 @@ endmodule
 // IN: current PC
 // OUT: InstWord, PC+4
 module InstructionFetch(CLK, RST, stall,
-                        PCSel, targetAddr,
+                        PCSel_ID, PCSel_EX, targetAddr_ID, targetAddr_EX,
                         InstWord, PC, PC_Plus4);
     input CLK, RST;
-    input PCSel;
+    input PCSel_ID, PCSel_EX;
     input stall;
-    input [31:0] targetAddr;
+    input [31:0] targetAddr_ID, targetAddr_EX;
     output [31:0] PC, PC_Plus4;
     output [31:0] InstWord;
 
     // PC mux to choose next PC
-    wire [31:0] Next_PC, Target_PC;
+    wire [31:0] Next_PC;
     assign PC_Plus4 = PC + 4;
 
     // if stall is 1, then PC stops updating, otherwise it updates
     // if PCSel is 1, then target address from ALU, otherwise PC+4
-    assign Target_PC = (PCSel == `PC_ALUOUT) ? targetAddr : PC_Plus4;
-    assign Next_PC = (stall == 1) ? PC : Target_PC;
+
+    assign Next_PC = (stall) ? PC : ((PCSel_EX == 1'b1) ? targetAddr_EX : (PCSel_ID == 1'b1) ? targetAddr_ID : PC_Plus4);
 
     // PC reg
-    Reg PC_REG(.Din(Next_PC), .Qout(PC), .WEN(1'b0), .CLK(CLK), .RST(RST));
+    Reg #(32) PC_REG(.Din(Next_PC), .Qout(PC), .WEN(1'b0), .CLK(CLK), .RST(RST));
 
     // instruction memory
     InstMem IMEM(.Addr(PC), .Size(`SIZE_WORD), .DataOut(InstWord), .CLK(CLK));
@@ -352,8 +367,8 @@ module InstructionDecode(InstWord_in, CLK, PC_in, PC_Plus4_in,
                         RegWrData_WB, RegWrEn_WB, Rdst_WB,
                         RegAData, RegBData, Rdst, InstWord_out, PC_out, PC_Plus4_out,
                         ALUsrcA, ALUsrcB, WBSel, ImmSel, MemWrEn, RegWrEn, LoadType, MemSize,
-                        RegA, RegB,
-                        halt_ID_out,
+                        RegA, RegB, immediate, doBranch,
+                        halt_ID_out, targetAddr, taken, PCSel,
                         isNew);
     input [31:0] InstWord_in, PC_in, PC_Plus4_in;
     input CLK;
@@ -372,6 +387,10 @@ module InstructionDecode(InstWord_in, CLK, PC_in, PC_Plus4_in,
     output ALUsrcA, ALUsrcB, MemWrEn, RegWrEn;
     output [1:0] WBSel, MemSize;
     output [2:0] ImmSel, LoadType;
+
+    output [31:0] targetAddr, immediate;
+    input [1:0] taken;
+    output PCSel;
 
     // halt signal
     output halt_ID_out;
@@ -400,12 +419,34 @@ module InstructionDecode(InstWord_in, CLK, PC_in, PC_Plus4_in,
     ControlUnit CU( // inputs
                     .opcode(opcode), .funct3(funct3),
                     // outputs
-                    .PCSel(PCSel), .ImmSel(ImmSel), .RWrEn(RegWrEn), .ALUsrcA(ALUsrcA),
-                    .ALUsrcB(ALUsrcB), .MemWrEn(MemWrEn), .WBSel(WBSel),
+                    .ImmSel(ImmSel), .RWrEn(RegWrEn), .ALUsrcA(ALUsrcA), 
+                    .ALUsrcB(ALUsrcB), .MemWrEn(MemWrEn), .WBSel(WBSel), 
                     .LoadType(LoadType), .MemSize(MemSize), .halt(controlHalt));
 
+    // immediate generation
+    ImmediateGenerator IG(.InstWord(InstWord_in), .ImmSel(ImmSel), .immediate(immediate));
+    
+    // target address generation
+    assign targetAddr = (opcode == `OPCODE_JALR) ? RegAData + immediate : PC_in + immediate;
+
+    
+    output doBranch;
+    wire [1:0] curstate;
+    wire [1:0] newstate;
+    BranchPredictor BP(.opcode(opcode), .taken(taken), .prediction(doBranch), .curstate(isNew ? 2'b10 : curstate), .newstate(newstate));
+
+    Reg #(2) BP_State_Reg(.Din(newstate), .Qout(curstate), .WEN(1'b0), .CLK(CLK), .RST(RST));
+
+    // if we do branch, check if valid address
+    wire alignHalt;
+    PCAlign PCA(.PC(targetAddr), .doBranch(doBranch), .halt(alignHalt));
+
+    // PCSel only comes from ALU if doBranch true
+    assign PCSel = isNew ? `PC_PCPLUS4 : (doBranch ? `PC_ALUOUT : `PC_PCPLUS4);
+
+
     // assign halt based on control output & PC alignment if jump/br
-    assign halt_ID_out = (controlHalt && !(isNew));
+    assign halt_ID_out = ((controlHalt | alignHalt) && !(isNew));
 
     // any values that we need to pass directly thru
     assign InstWord_out = InstWord_in;
@@ -419,29 +460,28 @@ endmodule
 module Execute(     // inputs
                     InstWord, PC, PC_Plus4, RegAName, RegAData, RegBName, RegBData, Rdst,
                     ALUsrcA, ALUsrcB, WBSel, ImmSel, MemWrEn, RegWrEn,
-                    LoadType, MemSize,
-                    halt_EX_in,
+                    LoadType, MemSize, immediate_in,
+                    halt_EX_in, didBranch, targetAddr_in,
                     isNew,
                     // outputs
-                    ALUout, RegBData_out, PC_Plus4_out, Rdst_out, immediate,
+                    ALUout, RegBData_out, PC_Plus4_out, Rdst_out, PCSel, immediate_out,
                     Rdst_Data_out, MemWrEn_out, RegWrEn_out, WBSel_out, LoadType_out, MemSize_out,
-                    PCsel, targetAddr, InstWord_out,
+                    InstWord_out, take, EX_nop, ID_nop, targetAddr_out,
                     halt_EX_out
                     // full forwarding
                     );
     // declare inputs
-    input [31:0] InstWord, PC, PC_Plus4, RegAData, RegBData;
-    //ALUsrcA and B don't contain the names themselves
+    input [31:0] InstWord, PC, PC_Plus4, RegAData, RegBData, immediate_in, targetAddr_in;
     input ALUsrcA, ALUsrcB, MemWrEn, RegWrEn;
     input [1:0] WBSel, MemSize;
     input [2:0] ImmSel, LoadType;
-    input [4:0] RegAName, RegBName, Rdst, FF_MEM_Rdst;
+    input [4:0] RegAName, RegBName, Rdst, FF_MEM_Rdst;   
     input isNew;
     input [31:0] FF_MEM_in;
 
     // declare outputs
     // data going to MEM
-    output [31:0] ALUout, RegBData_out, PC_Plus4_out, immediate, Rdst_Data_out;
+    output [31:0] ALUout, RegBData_out, PC_Plus4_out, Rdst_Data_out, targetAddr_out, immediate_out;
     output [4:0] Rdst_out;
     output [31:0] InstWord_out;
 
@@ -449,12 +489,13 @@ module Execute(     // inputs
     output MemWrEn_out, RegWrEn_out;
     output [1:0] WBSel_out, MemSize_out;
     output [2:0] LoadType_out;
-    // control signals going to IF
-    output [31:0] targetAddr;
-    output PCsel;
     // halt signal
     input halt_EX_in;
     output halt_EX_out;
+
+    // if the branch predictor branched
+    input didBranch;
+    output EX_nop, ID_nop, PCSel;
 
     // break up instruction parts that we need
     wire [6:0] opcode;
@@ -463,28 +504,20 @@ module Execute(     // inputs
     assign opcode = InstWord[6:0];
     assign funct3 = InstWord[14:12];
     assign funct7 = InstWord[31:25];
-    // immediate generation
-    ImmediateGenerator IG(.InstWord(InstWord), .ImmSel(ImmSel), .immediate(immediate));
+    
+        // detect if we branch or not
+    output [1:0] take;
+    wire branchHalt;
+    BranchUnit BU(.opA(RegAData), .opB(RegBData), .funct3(funct3), .opcode(opcode), 
+                .out(take), .halt(branchHalt), .didBranch(didBranch), .EX_nop(EX_nop), .ID_nop(ID_nop));
 
-    // target address generation
-    assign targetAddr = (opcode == `OPCODE_JALR) ? RegAData + immediate : PC + immediate;
-
-    // detect if we branch or not
-    wire branchHalt, doBranch;
-    BranchUnit BU(.opA(RegAData), .opB(RegBData), .funct3(funct3), .opcode(opcode),
-                .out(doBranch), .halt(branchHalt));
-
-    // if we do branch, check if valid address
-    wire alignHalt;
-    PCAlign PCA(.PC(targetAddr), .doBranch(doBranch), .halt(alignHalt));
-
-    // PCSel only comes from ALU if doBranch true
-    assign PCsel = isNew ? `PC_PCPLUS4 : (doBranch ? `PC_ALUOUT : `PC_PCPLUS4);
+    assign targetAddr_out = (didBranch) ? PC_Plus4 : targetAddr_in;
+    assign PCSel = (ID_nop & EX_nop) ? `PC_ALUOUT : `PC_PCPLUS4;
 
     // muxes determine ops for ALU
     wire [31:0] ALUopA, ALUopB;
     assign ALUopA = (ALUsrcA == `ALU_A_REG) ? RegAData : PC;
-    assign ALUopB = (ALUsrcB == `ALU_B_REG) ? RegBData : immediate;
+    assign ALUopB = (ALUsrcB == `ALU_B_REG) ? RegBData : immediate_in;
 
     // execute ALU
     wire ALUhalt;
@@ -492,19 +525,20 @@ module Execute(     // inputs
                             .auxFunc(funct7), .out(ALUout), .halt(ALUhalt));
 
     // assign halt based on branch or ALU or incoming halt signal
-    assign halt_EX_out = (branchHalt | ALUhalt | alignHalt | halt_EX_in) && (!isNew);
+    assign halt_EX_out = (branchHalt | ALUhalt | halt_EX_in) && (!isNew);
 
     //TODO GET RID OF WRITE BACK STAGE
     // I still don't know what the purpose of immediate is
     assign Rdst_Data_out =  (WBSel == `WB_ALU) ? ALUout :
                                     ((WBSel == `WB_PC4) ? PC_Plus4 :
-                                        ((WBSel == `WB_IMM) ? immediate: 32'b0)) ;
+                                        ((WBSel == `WB_IMM) ? immediate_in: 32'b0)) ;
     // pass thru any signals that don't get changed by this stage
     // data signals
     assign RegBData_out = RegBData;
     assign PC_Plus4_out = PC_Plus4;
     assign Rdst_out = Rdst;
     assign InstWord_out = InstWord;
+    assign immediate_out = immediate_in;
     // ctrl signals
     assign MemWrEn_out = MemWrEn;
     assign RegWrEn_out = RegWrEn;

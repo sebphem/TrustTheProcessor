@@ -28,8 +28,9 @@
 `define SI_IMM 3'b110
 
 // branch Y/N
-`define BR_FALSE 1'b0
-`define BR_TRUE 1'b1
+`define BR_FALSE 2'b10
+`define BR_TRUE 2'b11
+`define BR_NOTABRANCH 2'b00
 
 // writeback select codes
 `define WB_ALU 2'b00
@@ -147,11 +148,13 @@ endmodule
 // in - opA, opB, funct3, opcode
 // out - out, halt
 // outputs 1 if branch is taken, 0 if not
-module BranchUnit(opA, opB, funct3, opcode, out, halt);
+module BranchUnit(opA, opB, funct3, opcode, out, halt, didBranch, EX_nop, ID_nop);
   input [31:0] opA, opB;
   input [2:0] funct3;
   input [6:0] opcode;
-  output reg out;
+  input didBranch;
+  output reg EX_nop, ID_nop;
+  output reg [1:0] out;
   output reg halt;
 
   wire signed [31:0] sopA, sopB;
@@ -160,7 +163,7 @@ module BranchUnit(opA, opB, funct3, opcode, out, halt);
 
   always @(*) begin
     halt = 1'b0;
-    if (opcode == `OPCODE_JAL || opcode == `OPCODE_JALR) 
+    if (opcode == `OPCODE_JAL || opcode == `OPCODE_JALR)
         out = `BR_TRUE; // if jal or jalr, always branch (jump)
         else if (opcode == `OPCODE_BRANCH)
             begin
@@ -175,13 +178,80 @@ module BranchUnit(opA, opB, funct3, opcode, out, halt);
                     if (opcode == `OPCODE_BRANCH)
                     halt = 1'b1; // if branch opcode but not a valid br instruction, halt
                     else
-                    out = `BR_FALSE; // default
+                    out = `BR_NOTABRANCH; // default
                 endcase
             end
     else 
-        out = `BR_FALSE; // default
+        out = `BR_NOTABRANCH; // default
+
+    if (opcode == `OPCODE_BRANCH || opcode == `OPCODE_JAL || opcode == `OPCODE_JALR) begin
+        if (didBranch != out[0]) begin
+            EX_nop = 1'b1;
+            ID_nop = 1'b1;
+        end
+        else if (didBranch == 1'b1 & out == `BR_TRUE) begin
+            EX_nop = 1'b1;
+            ID_nop = 1'b0;
+        end
+        else begin
+            EX_nop = 1'b0;
+            ID_nop = 1'b0;
+        end
+    end else begin
+        EX_nop = 1'b0;
+        ID_nop = 1'b0;
+    end
+
   end
 endmodule // Branch Unit
+
+// 2-bit Branch Predictor
+module BranchPredictor(opcode, taken, prediction, curstate, newstate);
+    input [1:0] taken;
+    input [6:0] opcode;
+    output reg prediction;
+    input [1:0] curstate; 
+    output reg [1:0] newstate;
+
+    always @(*) begin
+        if (opcode == `OPCODE_BRANCH) begin
+            case (curstate)
+            2'b00: prediction <= `BR_FALSE;
+            2'b01: prediction <= `BR_FALSE;     
+            2'b10: prediction <= `BR_TRUE;      
+            2'b11: prediction <= `BR_TRUE; 
+            endcase
+        end
+        else if (opcode == `OPCODE_JAL || opcode == `OPCODE_JALR) begin
+            prediction <= `BR_TRUE;
+        end
+        else begin
+            prediction <= `BR_FALSE;
+        end
+    
+        if (taken != `BR_NOTABRANCH) begin
+            case (curstate)
+                2'b00: begin
+                    if (taken == `BR_TRUE) newstate <= 2'b01;
+                    else if (taken == `BR_FALSE) newstate <= 2'b00;
+                end
+                2'b01: begin
+                    if (taken == `BR_TRUE) newstate <= 2'b10;
+                    else if (taken == `BR_FALSE) newstate <= 2'b00;
+                end        
+                2'b10: begin
+                    if (taken == `BR_TRUE) newstate <= 2'b11;  
+                    else if (taken == `BR_FALSE) newstate <= 2'b01;
+                end        
+                2'b11: begin
+                    if (taken == `BR_TRUE) newstate <= 2'b11;
+                    else if (taken == `BR_FALSE) newstate <= 2'b10;
+                end  
+            endcase
+        end else newstate <= curstate;
+    end
+endmodule
+
 
 module StallUnit (
     //input
@@ -244,6 +314,10 @@ module ForwardingUnit(
                 RegA_ID_Data = (Rdst_MEM_Name == RegA_ID && Rdst_EX_Name != RegA_ID && RegA_ID != 5'b0) ? Rdst_MEM_Data : RegA_ID_cur;
                 RegB_ID_Data = (Rdst_MEM_Name == RegB_ID && Rdst_EX_Name != RegB_ID && RegB_ID != 5'b0) ? Rdst_MEM_Data : RegB_ID_cur;
             end
+            else begin
+                RegA_ID_Data = RegA_ID_cur;
+                RegB_ID_Data = RegB_ID_cur;
+            end
         end
     end
 endmodule
@@ -252,13 +326,13 @@ endmodule
 // ControlUnit
 // in - opcode, funct3
 // out - PCSel, ImmSel, RWrEn, ALUsrcA, ALUsrcB, MemWrEn, WBSel, halt
-module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
+module ControlUnit(opcode, funct3, ImmSel, WBSel, 
                     RWrEn, ALUsrcA, ALUsrcB, MemWrEn, LoadType, MemSize, halt);
     input [6:0] opcode;
     input [2:0] funct3;
     output reg [2:0] ImmSel, LoadType;
     output reg [1:0] WBSel, MemSize;
-    output reg PCSel, RWrEn, ALUsrcA, ALUsrcB, MemWrEn;
+    output reg RWrEn, ALUsrcA, ALUsrcB, MemWrEn;
     output reg halt;
 
     always @(*) begin
@@ -266,7 +340,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
         case(opcode)
             `OPCODE_COMPUTE: // R-type instructions
                 begin
-                    PCSel = `PC_PCPLUS4; // PC source is PC+4
                     ImmSel = `R_IMM; // no immediate, 0s
                     RWrEn = 1'b0; // register write enabled
                     ALUsrcA = `ALU_A_REG; // ALU source A is register
@@ -276,7 +349,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_ICOMPUTE: // I-type instructions
                 begin
-                    PCSel = `PC_PCPLUS4; // PC source is PC+4
                     if (funct3 == 3'b001 || funct3 == 3'b101)
                         ImmSel = `SI_IMM; // I-type immediate for shifts
                     else
@@ -289,7 +361,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_LOAD: // Load instructions
                 begin
-                    PCSel = `PC_PCPLUS4; // PC source is PC+4
                     ImmSel = `I_IMM; // I-type immediate
                     RWrEn = 1'b0; // register write enabled
                     ALUsrcA = `ALU_A_REG; // ALU source A is register
@@ -308,7 +379,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_STORE: // Store instructions
                 begin
-                    PCSel = `PC_PCPLUS4; // PC source is PC+4
                     ImmSel = `S_IMM; // S-type immediate
                     RWrEn = 1'b1; // register write disabled
                     ALUsrcA = `ALU_A_REG; // ALU source A is register
@@ -324,7 +394,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_BRANCH: // Branch instructions
                 begin
-                    PCSel = `PC_PCPLUS4; // assume never taken, will change if taken
                     ImmSel = `B_IMM; // B-type immediate
                     RWrEn = 1'b1; // register write disabled
                     ALUsrcA = `ALU_A_PC; // ALU source A is PC
@@ -334,8 +403,7 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_JAL: // JAL
                 begin
-                    PCSel = `PC_ALUOUT; // PC source is ALU output
-                    ImmSel = `J_IMM; // J-type immediate
+                    ImmSel = `J_IMM; // J-type immediate 
                     RWrEn = 1'b0; // register write enabled
                     ALUsrcA = `ALU_A_PC; // ALU source A is PC
                     ALUsrcB = `ALU_B_IMM; // ALU source B is immediate
@@ -344,7 +412,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_JALR: // JALR
                 begin
-                    PCSel = `PC_ALUOUT; // PC source is ALU output 
                     ImmSel = `I_IMM; // I-type immediate 
                     RWrEn = 1'b0; // register write enabled
                     ALUsrcA = `ALU_A_REG; // ALU source A is register
@@ -354,7 +421,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_LUI: // LUI
                 begin
-                    PCSel = `PC_PCPLUS4; // PC source is PC + 4 
                     ImmSel = `U_IMM; // U-type immediate 
                     RWrEn = 1'b0; // register write enabled
                     ALUsrcA = `ALU_A_REG; // ALU source A doesn't matter
@@ -364,7 +430,6 @@ module ControlUnit(opcode, funct3, ImmSel, WBSel, PCSel,
                 end
             `OPCODE_AUIPC: // AUIPC
                 begin
-                    PCSel = `PC_PCPLUS4; // PC source is PC + 4
                     ImmSel = `U_IMM; // U-type immediate 
                     RWrEn = 1'b0; // register write enabled
                     ALUsrcA = `ALU_A_PC; // ALU source A is PC

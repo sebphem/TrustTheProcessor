@@ -37,16 +37,16 @@ module tb;
       // Feel free to modify to inspect whatever you want
 
 
-      // #0 $monitor($time,, "PC=%08x pcsel=%x pc.target addr pc=%08x pc+4=%08x targetpc=%08x\n IR=%08x halt=%x exit=%x IF_ID_Stall=%x \n ID\n   RegA=%x RegA Val=%x RegB=%x RegB Val=%x Rdst=%x halt=%x regwr=%x\n   controlunit regwr=%x\n EX\n   Rdst=%x Rdst_Data=%x RegA_Data=%x RegB_DATA=%x ALU_OUT=%x halt=%x regwr=%x \n   Branch Predictor pc=%08x target addr=%08x pc_sel=%x isnew=%x doBranch=%x funct3=%x opcode=%x\n Forwarding\n   RegA_ID_name=%x RegA_VAL_ID=%x RegB_ID_name=%x RegB_VAL_ID =%x\n    EX RDest=%x RDest_VAL=%x Reg_WR_EN=%x opcode=%x\n    MEM RDest=%x RDest_VAL=%x Reg_WR_EN=%x opcode=%x \n Forwarding out:\n   regA=%x regB=%x\n MEM\n   ALUresult_in=%x RegBData=%x M[%x] val put in: %x val gotten out: %x memwr=%x\n   Rdst=%x rdst_val=%x halt=%x regwr=%x opcode=%x\n WB\n   regwr=%x \n",
+      // #0 $monitor($time,, "PC=%08x pcsel_EX=%x pcsel_ID=%x targetaddr_EX=%08x targetaddr_ID=%08x pc+4=%08x Next_PC=%08x\n IR=%08x halt=%x exit=%x IF_ID_Stall=%x \n ID\n  RegA=%x RegA Val=%x RegB=%x RegB Val=%x Rdst=%x halt=%x regwr=%x\n  controlunit regwr=%x\n EX\n   Rdst=%x Rdst_Data=%x RegA_Data=%x RegB_DATA=%x ALU_OUT=%x halt=%x regwr=%x \n  Branch Predictor pc=%08x pc_sel=%x take=%x didBranch=%x funct3=%x opcode=%x\n Forwarding\n   RegA_ID_name=%x RegA_VAL_ID=%x RegB_ID_name=%x RegB_VAL_ID =%x\n    EX RDest=%x RDest_VAL=%x Reg_WR_EN=%x opcode=%x\n    MEM RDest=%x RDest_VAL=%x Reg_WR_EN=%x opcode=%x \n Forwarding out:\n   regA=%x regB=%x\n MEM\n   ALUresult_in=%x RegBData=%x M[%x] val put in: %x val gotten out: %x memwr=%x\n   Rdst=%x rdst_val=%x halt=%x regwr=%x opcode=%x\n WB\n   regwr=%x \n",
       //             //IF
-      //             CPU.IF.PC, CPU.IF.PCSel, CPU.IF.targetAddr, CPU.IF.PC_Plus4, CPU.IF.Target_PC,
+      //             CPU.IF.PC, CPU.IF.PCSel_EX, CPU.IF.PCSel_ID, CPU.IF.targetAddr_EX, CPU.IF.targetAddr_ID, CPU.IF.PC_Plus4, CPU.IF.Next_PC,
       //             CPU.IF.InstWord, halt, exit, CPU.IF_ID_stall_out,
       //             //ID
       //             CPU.ID.RegA, CPU.ID.RegAData, CPU.ID.RegB, CPU.ID.RegBData, CPU.ID_EX_data.Rdst_D, CPU.ID.halt_ID_out, CPU.ID.RegWrEn, CPU.ID.CU.RWrEn,
       //             // CPU.ID.RegWrData_WB, CPU.ID.RegWrEn_WB, CPU.ID.Rdst_WB, CPU.MEM_WB_data.Rdst_Data_M,CPU.MEM_WB_data.Rdst_Data_W, CPU.Rdst_Data_in_W,
       //             //ex
       //             CPU.EX.Rdst_out, CPU.EX.Rdst_Data_out, CPU.EX.RegAData, CPU.EX.RegBData, CPU.EX.ALUout, CPU.EX.halt_EX_out, CPU.EX.RegWrEn_out,
-      //             CPU.EX.PC, CPU.EX.targetAddr, CPU.EX.PCsel, CPU.EX.isNew, CPU.EX.doBranch, CPU.EX.funct3, CPU.EX.opcode,
+      //             CPU.EX.PC, CPU.EX.PCSel, CPU.EX.take, CPU.EX.BU.didBranch, CPU.EX.funct3, CPU.EX.opcode,
       //             //forwarding
       //             CPU.Forwarding.RegA_ID, CPU.Forwarding.RegA_ID_cur, CPU.Forwarding.RegB_ID, CPU.Forwarding.RegB_ID_cur,
       //             CPU.Forwarding.Rdst_EX_Name, CPU.Forwarding.Rdst_EX_Data, CPU.Forwarding.RegWREN_EX, CPU.Forwarding.opcode_EX,
@@ -61,13 +61,22 @@ module tb;
       //             CPU.MEM_WB_ctrl.RegWrEn_W);
 
 
-      #0 $monitor($time,, "PC=%08x IR=%08x halt=%x exit=%x", CPU.IF.PC, CPU.IF.InstWord, halt, exit);
+      // #0 $monitor($time,, " IF: PC=%08x IR=%08x  PC_Plus4=%x PCSel_EX=%x PCSel_ID=%x targetAddr_EX=%x targetAddr_ID=%x \n ID: PC_in=%x InstWord=%x doBranch=%x curstate=%x newstate=%x PCSel=%x targetAddr=%x\n Regs: didBranch_out_D=%x didBranch_in_E=%x\nEX: PC=%x InstWord=%x opA=%x opB=%x PCSel=%x didBranch=%x targetAddr_out=%x take=%x EX_nop=%x ID_nop=%x\n", 
+      // // IF
+      // CPU.IF.PC, CPU.IF.InstWord, CPU.IF.PC_Plus4, CPU.IF.PCSel_EX, CPU.IF.PCSel_ID, CPU.IF.targetAddr_EX, CPU.IF.targetAddr_ID,
+      // // ID
+      // CPU.ID.PC_in, CPU.ID.InstWord_in, CPU.ID.doBranch, CPU.ID.BP.curstate, CPU.ID.newstate, CPU.ID.PCSel, CPU.ID.targetAddr, CPU.didBranch_out_D, CPU.didBranch_in_E,
+      // //EX
+      // CPU.EX.PC, CPU.EX.InstWord, CPU.EX.RegAData, CPU.EX.RegBData, CPU.EX.PCSel, CPU.EX.didBranch, CPU.EX.targetAddr_out, CPU.EX.take, CPU.EX.EX_nop, CPU.EX.ID_nop
+      // );
+
+      #0 $monitor($time,, "PC=%08x IR=%08x halt=%x exit=%x ", CPU.IF.PC, CPU.IF.InstWord, halt, exit,);
       // Exit???
       wait(exit);
       // Dump registers
       #0 $writememh("regs_out.hex", CPU.ID.RF.Mem);
 
-      // Dump memory
+      // Dump memory!
       #0 $writememh("mem_out.hex", CPU.MEM.DMEM.Mem);
 
       $finish;      
