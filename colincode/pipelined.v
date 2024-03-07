@@ -458,7 +458,7 @@ endmodule
 // IN: InstWord, PC, PC+4, RegAData, RegBData, Rdst, various control signals
 // OUT: ALUout, immediate, various control signals
 module Execute(     // inputs
-                    InstWord, PC, PC_Plus4, RegAName, RegAData, RegBName, RegBData, Rdst,
+                    InstWord, PC, PC_Plus4, RegAData, RegBData, Rdst,
                     ALUsrcA, ALUsrcB, WBSel, ImmSel, MemWrEn, RegWrEn,
                     LoadType, MemSize, immediate_in,
                     halt_EX_in, didBranch, targetAddr_in,
@@ -475,9 +475,8 @@ module Execute(     // inputs
     input ALUsrcA, ALUsrcB, MemWrEn, RegWrEn;
     input [1:0] WBSel, MemSize;
     input [2:0] ImmSel, LoadType;
-    input [4:0] RegAName, RegBName, Rdst, FF_MEM_Rdst;   
+    input [4:0] Rdst;   
     input isNew;
-    input [31:0] FF_MEM_in;
 
     // declare outputs
     // data going to MEM
@@ -606,13 +605,13 @@ module WriteBack(WB_data_in, WB_data_out,
     // inputs
     input [31:0] WB_data_in;
     // output
-    output reg [31:0] WB_data_out;
+    output [31:0] WB_data_out;
     // halt signal
     input halt_WB_in;
     output halt_WB_out;
 
     // halt can't get asserted here so just pass thru
     assign halt_WB_out = halt_WB_in;
-    assign WB_data_in = WB_data_out;
+    assign WB_data_out = WB_data_in;
 endmodule
 

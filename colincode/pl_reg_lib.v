@@ -203,7 +203,7 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
             RegWrEn_E <= RegWrEn_D;
             LoadType_E <= LoadType_D;
             MemSize_E <= MemSize_D;
-            halt_E <= halt_D;;
+            halt_E <= halt_D;
             didBranch_E <= didBranch_D;
             // if not just reset, this program is not NEW
             NEW_OUT <= NEW_IN;
@@ -211,9 +211,7 @@ module ID_EX_ctrl_reg(WEN, CLK, RST, ALUsrcA_D, ALUsrcB_D, WBSel_D, ImmSel_D,
 endmodule
 
 module EX_MEM_data_reg(WEN, CLK, RST, NEW, ALUresult_E, RegBData_E, Immediate_E, PC_Plus4_E, Rdst_E, InstWord_E,
-                        ALUresult_M, RegBData_M, Immediate_M, PC_Plus4_M, Rdst_M, InstWord_M,
-                        // nop
-                        );
+                        ALUresult_M, RegBData_M, Immediate_M, PC_Plus4_M, Rdst_M, InstWord_M);
     input WEN, CLK, RST;
     output reg NEW;
     input [31:0] ALUresult_E, RegBData_E, PC_Plus4_E, Immediate_E;
